@@ -3,7 +3,7 @@ import { freeRunUsed, ipHash, lockoutMinutes, recordFailure, saveRunIfAllowed } 
 import { optimise, todayInLondon } from "@/lib/optimise";
 import { findCheaperElsewhere, outsideOptions } from "@/lib/network";
 import { adviseSellPrice, unitCost } from "@/lib/pricing";
-import { addOffer, addProduct, addSupplier, getCompanyAuth, getWorkspace, updateProduct } from "@/lib/repo";
+import { addOffer, addProduct, addSupplier, getCompanyAuth, getWorkspace, updateProduct, deleteProduct, updateSupplier, deleteSupplier, deleteOffer } from "@/lib/repo";
 import { track, trackError } from "@/lib/telemetry";
 import type { Workspace } from "@/lib/types";
 
@@ -57,6 +57,23 @@ const TOOLS = [
       },
     },
   },
+  {
+    name: "update_product",
+    description: "Rename a product, change its unit, or set how much this order needs. Omitted fields stay as they are.",
+    inputSchema: { type: "object", required: ["product"], properties: { product: { type: "string", description: "Product name or id" }, name: { type: "string" }, unit: { type: "string" }, neededQty: money } },
+  },
+  { name: "delete_product", description: "Remove a product and every price for it.", inputSchema: { type: "object", required: ["product"], properties: { product: { type: "string" } } } },
+  {
+    name: "update_supplier",
+    description: "Change a supplier's name, rules or order email. Omitted fields stay as they are; send freeDeliveryOver null to make delivery never free.",
+    inputSchema: {
+      type: "object",
+      required: ["supplier"],
+      properties: { supplier: { type: "string" }, name: { type: "string" }, minOrder: money, deliveryFee: money, freeDeliveryOver: { type: ["number", "null"] }, email: { type: "string" } },
+    },
+  },
+  { name: "delete_supplier", description: "Remove a supplier and all its prices.", inputSchema: { type: "object", required: ["supplier"], properties: { supplier: { type: "string" } } } },
+  { name: "delete_offer", description: "Remove one way to buy (an offer id from get_workspace).", inputSchema: { type: "object", required: ["offerId"], properties: { offerId: { type: "string" } } } },
   {
     name: "record_price_test",
     description: "Log a selling price the business has tried and how many units sold per week at it. Two or more different prices unlock price advice.",
@@ -122,6 +139,39 @@ async function callTool(companyId: string, ip: string, name: string, a: Args): P
         promoPrice: nonNeg(a, "promoPrice", null), promoUntil, maxBuys,
       });
       return `Added offer: ${s.name} sells ${units} ${p.unit} of ${p.name} for £${a.price}`;
+    }
+    case "update_product": {
+      const p = find(ws.products, str(a, "product"), "product");
+      await updateProduct(companyId, { ...p, name: str(a, "name") ?? p.name, unit: str(a, "unit") ?? p.unit, neededQty: nonNeg(a, "neededQty", p.neededQty)! });
+      return `Updated ${p.name}`;
+    }
+    case "delete_product": {
+      const p = find(ws.products, str(a, "product"), "product");
+      await deleteProduct(companyId, p.id);
+      return `Deleted ${p.name}`;
+    }
+    case "update_supplier": {
+      const s = find(ws.suppliers, str(a, "supplier"), "supplier");
+      await updateSupplier(companyId, {
+        ...s,
+        name: str(a, "name") ?? s.name,
+        minOrder: nonNeg(a, "minOrder", s.minOrder)!,
+        deliveryFee: nonNeg(a, "deliveryFee", s.deliveryFee)!,
+        freeDeliveryOver: "freeDeliveryOver" in a ? nonNeg(a, "freeDeliveryOver", null) : s.freeDeliveryOver,
+        email: "email" in a ? str(a, "email") : undefined,
+      });
+      return `Updated ${s.name}`;
+    }
+    case "delete_supplier": {
+      const s = find(ws.suppliers, str(a, "supplier"), "supplier");
+      await deleteSupplier(companyId, s.id);
+      return `Deleted ${s.name}`;
+    }
+    case "delete_offer": {
+      const o = ws.offers.find((x) => x.id === str(a, "offerId"));
+      if (!o) throw new Error("No offer with that id; get_workspace lists them.");
+      await deleteOffer(companyId, o.id);
+      return "Deleted offer";
     }
     case "record_price_test": {
       const p = find(ws.products, str(a, "product"), "product");

@@ -25,6 +25,9 @@ Body is JSON-RPC 2.0. It is also a standard MCP server (Streamable HTTP), so MCP
 - add_product {name, unit, neededQty?}: unit is kg, l, each…; neededQty is how much this order needs.
 - set_quantity {product, neededQty}: product by name or id; 0 skips it this time.
 - add_offer {supplier, product, unitsPerBuy, price, label?, promoPrice?, promoUntil?, maxBuys?}: one way to buy. A single 2 l bottle is unitsPerBuy 2; a case of 6 x 2 l is unitsPerBuy 12. Add singles and cases as separate offers; the optimiser picks the mix. promoUntil is YYYY-MM-DD, inclusive.
+- update_product {product, name?, unit?, neededQty?} / delete_product {product}
+- update_supplier {supplier, name?, minOrder?, deliveryFee?, freeDeliveryOver?, email?} / delete_supplier {supplier}
+- delete_offer {offerId}
 - record_price_test {product, price, weeklySold}: a selling price tried and units sold per week.
 - set_sell_range {product, sellMin?, sellMax?}
 - price_advice {}: recommended selling price per product.
