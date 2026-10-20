@@ -1,11 +1,11 @@
 import { verifyCode } from "@/lib/access";
 import { freeRunUsed, ipHash, lockoutMinutes, recordFailure, saveRunIfAllowed } from "@/lib/guard";
 import { optimise, todayInLondon } from "@/lib/optimise";
-import { findCheaperElsewhere, outsideOptions } from "@/lib/network";
+import { adoptSupplier, findCheaperElsewhere, outsideOptions } from "@/lib/network";
 import { adviseSellPrice, unitCost } from "@/lib/pricing";
-import { addOffer, addProduct, addSupplier, getCompanyAuth, getWorkspace, updateProduct, deleteProduct, updateSupplier, deleteSupplier, deleteOffer } from "@/lib/repo";
+import { addOffer, addProduct, addSupplier, getCompanyAuth, getRun, getWorkspace, listRuns, updateProduct, deleteProduct, updateSupplier, deleteSupplier, deleteOffer } from "@/lib/repo";
 import { track, trackError } from "@/lib/telemetry";
-import type { Workspace } from "@/lib/types";
+import type { OrderLine, Workspace } from "@/lib/types";
 
 /*
  * Minimal MCP server (Streamable HTTP, stateless JSON responses) so an owner's AI
@@ -86,6 +86,23 @@ const TOOLS = [
   },
   { name: "cheaper_elsewhere", description: "From the shared price book: suppliers this business doesn't use that list its products cheaper (only supplier list prices are shared between businesses).", inputSchema: { type: "object", properties: {} } },
   { name: "price_advice", description: "Profit-maximising selling price per product, fitted from the logged price tests and the cheapest unit cost.", inputSchema: { type: "object", properties: {} } },
+  { name: "list_runs", description: "Past optimisations: id, date, total and the single-supplier baseline.", inputSchema: { type: "object", properties: {} } },
+  { name: "get_run", description: "The full result of one optimisation (orders per supplier, saving, network suggestion).", inputSchema: { type: "object", required: ["runId"], properties: { runId: { type: "string" } } } },
+  {
+    name: "export_orders",
+    description: "A run's orders as CSV (one row per line) or as plain text per supplier, ready to paste.",
+    inputSchema: { type: "object", required: ["runId"], properties: { runId: { type: "string" }, format: { type: "string", enum: ["csv", "text"] } } },
+  },
+  {
+    name: "draft_order_emails",
+    description: "One ready-to-send email per supplier for a run: to, subject, body. Send them with your own mail tool, or show them to the owner to approve.",
+    inputSchema: { type: "object", required: ["runId"], properties: { runId: { type: "string" } } },
+  },
+  {
+    name: "adopt_supplier",
+    description: "Add a supplier from the shared price book (cheaper_elsewhere) to this business, with its list prices for your products.",
+    inputSchema: { type: "object", required: ["supplierId"], properties: { supplierId: { type: "string" } } },
+  },
   { name: "optimise", description: "Compute the cheapest legal split of the current order across suppliers and save it as a run.", inputSchema: { type: "object", properties: {} } },
 ];
 
@@ -190,6 +207,38 @@ async function callTool(companyId: string, ip: string, name: string, a: Args): P
     case "price_advice": {
       const today = todayInLondon();
       return ws.products.map((p) => ({ product: p.name, advice: adviseSellPrice(p, unitCost(p, ws.offers, today)) }));
+    }
+    case "list_runs":
+      return await listRuns(companyId);
+    case "get_run":
+    case "export_orders":
+    case "draft_order_emails": {
+      const run = await getRun(companyId, str(a, "runId") ?? "");
+      if (!run) throw new Error("No run with that id; list_runs shows them.");
+      if (name === "get_run") return run;
+      const plan = run.result.plan;
+      if (!plan) throw new Error(`That run has no orders (status: ${run.result.status}).`);
+      const date = new Date(run.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "Europe/London" });
+      const line = (l: OrderLine) => `${l.cases} x ${l.offerLabel || `${l.caseSize} ${l.unit}`} ${l.productName} @ £${l.casePrice.toFixed(2)} = £${l.lineTotal.toFixed(2)}`;
+      if (name === "export_orders" && str(a, "format") !== "text") {
+        const cell = (v: string | number) => (/[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : String(v));
+        const rows = [["supplier", "product", "offer", "buys", "units", "price_per_buy", "line_total"]];
+        for (const o of plan.orders) for (const l of o.lines) rows.push([o.supplierName, l.productName, l.offerLabel, String(l.cases), String(l.unitsBought), l.casePrice.toFixed(2), l.lineTotal.toFixed(2)]);
+        return rows.map((r) => r.map(cell).join(",")).join("\n");
+      }
+      if (name === "export_orders") {
+        return plan.orders.map((o) => [`Order for ${o.supplierName}`, ...o.lines.map((l) => `- ${line(l)}`), `Total: £${o.total.toFixed(2)}`].join("\n")).join("\n\n");
+      }
+      return plan.orders.map((o) => ({
+        to: o.supplierEmail ?? null,
+        subject: `Order from ${ws.company.name}, ${date}`,
+        body: ["Hello,", "", "Please could we order the following for delivery:", "", ...o.lines.map((l) => `- ${line(l)}`), "", `Goods total: £${o.subtotal.toFixed(2)}`, "", "Thanks,", ws.company.name].join("\n"),
+      }));
+    }
+    case "adopt_supplier": {
+      const added = await adoptSupplier(companyId, str(a, "supplierId") ?? "");
+      if (!added) throw new Error("That supplier isn't in your cheaper_elsewhere list.");
+      return `Added ${added} with its list prices`;
     }
     case "optimise": {
       const upgrade = "The free optimisation has been used. Upgrade to Pro (£29/month) for unlimited runs.";

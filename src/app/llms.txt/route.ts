@@ -32,6 +32,10 @@ Body is JSON-RPC 2.0. It is also a standard MCP server (Streamable HTTP), so MCP
 - set_sell_range {product, sellMin?, sellMax?}
 - price_advice {}: recommended selling price per product.
 - cheaper_elsewhere {}: suppliers the business doesn't use that list its products cheaper, from the shared price book.
+- adopt_supplier {supplierId}: add a supplier found by cheaper_elsewhere, with its list prices.
+- list_runs {} / get_run {runId}: past optimisations and their full results.
+- export_orders {runId, format: "csv"|"text"}: the orders as CSV or paste-ready text.
+- draft_order_emails {runId}: one email per supplier (to, subject, body). Send with your own mail tool after the owner approves.
 - optimise {}: solves and saves a run. The free plan includes one run; later calls return an upgrade message.
 
 Errors come back as a result with isError: true and a message saying what to fix (e.g. the list of known supplier names).
