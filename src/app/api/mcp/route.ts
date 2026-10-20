@@ -1,5 +1,6 @@
 import { verifyCode } from "@/lib/access";
 import { optimise, todayInLondon } from "@/lib/optimise";
+import { adviseSellPrice, unitCost } from "@/lib/pricing";
 import { addOffer, addProduct, addSupplier, getCompanyAuth, getWorkspace, saveRun, updateProduct } from "@/lib/repo";
 import { track, trackError } from "@/lib/telemetry";
 import type { Workspace } from "@/lib/types";
@@ -54,6 +55,17 @@ const TOOLS = [
       },
     },
   },
+  {
+    name: "record_price_test",
+    description: "Log a selling price the business has tried and how many units sold per week at it. Two or more different prices unlock price advice.",
+    inputSchema: { type: "object", required: ["product", "price", "weeklySold"], properties: { product: { type: "string" }, price: money, weeklySold: money } },
+  },
+  {
+    name: "set_sell_range",
+    description: "Set the selling-price range (£ per unit) the owner is willing to charge for a product.",
+    inputSchema: { type: "object", required: ["product"], properties: { product: { type: "string" }, sellMin: money, sellMax: money } },
+  },
+  { name: "price_advice", description: "Profit-maximising selling price per product, fitted from the logged price tests and the cheapest unit cost.", inputSchema: { type: "object", properties: {} } },
   { name: "optimise", description: "Compute the cheapest legal split of the current order across suppliers and save it as a run.", inputSchema: { type: "object", properties: {} } },
 ];
 
@@ -107,6 +119,22 @@ async function callTool(companyId: string, name: string, a: Args): Promise<unkno
         promoPrice: nonNeg(a, "promoPrice", null), promoUntil, maxBuys,
       });
       return `Added offer: ${s.name} sells ${units} ${p.unit} of ${p.name} for £${a.price}`;
+    }
+    case "record_price_test": {
+      const p = find(ws.products, str(a, "product"), "product");
+      const price = nonNeg(a, "price")!;
+      if (!(price > 0)) throw new Error("price must be > 0");
+      await updateProduct(companyId, { ...p, priceTests: [...p.priceTests, { price, weeklySold: nonNeg(a, "weeklySold")! }] });
+      return `${p.name}: logged ${a.weeklySold}/week at £${price}`;
+    }
+    case "set_sell_range": {
+      const p = find(ws.products, str(a, "product"), "product");
+      await updateProduct(companyId, { ...p, sellMin: nonNeg(a, "sellMin", null), sellMax: nonNeg(a, "sellMax", null) });
+      return `${p.name}: sell range updated`;
+    }
+    case "price_advice": {
+      const today = todayInLondon();
+      return ws.products.map((p) => ({ product: p.name, advice: adviseSellPrice(p, unitCost(p, ws.offers, today)) }));
     }
     case "optimise": {
       if (ws.company.plan === "free" && ws.runCount >= 1) throw new Error("The free optimisation has been used. Upgrade to Pro (£29/month) for unlimited runs.");

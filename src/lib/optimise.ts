@@ -1,6 +1,9 @@
 import highsLoader, { type LegacyHighs } from "highs";
 import { track } from "./telemetry.ts";
-import type { Offer, OptimisationResult, OrderLine, Plan, Product, Supplier, SupplierOrder, Workspace } from "./types";
+import type { Offer, OptimisationResult, OrderLine, Plan, Product as FullProduct, Supplier, SupplierOrder } from "./types";
+
+// The buying side only reads what a product needs; selling fields belong to pricing.ts.
+type Product = Pick<FullProduct, "id" | "name" | "unit" | "neededQty">;
 
 /*
  * The cheapest legal way to buy this order across suppliers, as a mixed-integer
@@ -153,7 +156,7 @@ function solve(highs: Highs, suppliers: Supplier[], products: Product[], options
 }
 
 /** Cheapest supplier split for the current order. `today` is an ISO date (promo validity). */
-export async function optimise(ws: Pick<Workspace, "suppliers" | "products" | "offers">, today: string): Promise<OptimisationResult> {
+export async function optimise(ws: { suppliers: Supplier[]; products: Product[]; offers: Offer[] }, today: string): Promise<OptimisationResult> {
   const solvedAt = new Date().toISOString();
   const wanted = ws.products.filter((p) => p.neededQty > 0);
   const options = purchaseOptions(ws.offers, ws.products, ws.suppliers, today);

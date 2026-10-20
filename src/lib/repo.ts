@@ -35,6 +35,9 @@ const toProduct = (r: Row): Product => ({
   name: r.name as string,
   unit: r.unit as string,
   neededQty: Number(r.needed_qty),
+  sellMin: num(r.sell_min),
+  sellMax: num(r.sell_max),
+  priceTests: (r.price_tests as Product["priceTests"]) ?? [],
 });
 const toOffer = (r: Row): Offer => ({
   id: r.id as string,
@@ -94,12 +97,16 @@ export async function deleteSupplier(companyId: string, supplierId: string) {
   await sql()`delete from suppliers where id = ${supplierId} and company_id = ${companyId}`;
 }
 
-export async function addProduct(companyId: string, p: Omit<Product, "id">) {
-  await sql()`insert into products (company_id, name, unit, needed_qty) values (${companyId}, ${p.name}, ${p.unit}, ${p.neededQty})`;
+type ProductInput = Omit<Product, "id" | "sellMin" | "sellMax" | "priceTests"> & Partial<Pick<Product, "sellMin" | "sellMax" | "priceTests">>;
+
+export async function addProduct(companyId: string, p: ProductInput) {
+  await sql()`insert into products (company_id, name, unit, needed_qty, sell_min, sell_max, price_tests)
+    values (${companyId}, ${p.name}, ${p.unit}, ${p.neededQty}, ${p.sellMin ?? null}, ${p.sellMax ?? null}, ${JSON.stringify(p.priceTests ?? [])})`;
 }
 
 export async function updateProduct(companyId: string, p: Product) {
-  await sql()`update products set name = ${p.name}, unit = ${p.unit}, needed_qty = ${p.neededQty}
+  await sql()`update products set name = ${p.name}, unit = ${p.unit}, needed_qty = ${p.neededQty},
+    sell_min = ${p.sellMin}, sell_max = ${p.sellMax}, price_tests = ${JSON.stringify(p.priceTests)}
     where id = ${p.id} and company_id = ${companyId}`;
 }
 

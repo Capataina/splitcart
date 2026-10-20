@@ -4,7 +4,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { optimise, buildModel, purchaseOptions } from "../src/lib/optimise.ts";
-import type { Offer, OptimisationResult, Product, Supplier } from "../src/lib/types.ts";
+import type { Offer, OptimisationResult, Product as FullProduct, Supplier } from "../src/lib/types.ts";
+
+type Product = Pick<FullProduct, "id" | "name" | "unit" | "neededQty">;
 
 const TODAY = "2026-10-20";
 const EPS = 1e-6;

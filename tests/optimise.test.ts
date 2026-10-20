@@ -3,7 +3,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { optimise } from "../src/lib/optimise.ts";
-import type { Offer, Product, Supplier } from "../src/lib/types.ts";
+import type { Offer, Product as FullProduct, Supplier } from "../src/lib/types.ts";
+
+type Product = Pick<FullProduct, "id" | "name" | "unit" | "neededQty">;
 
 const TODAY = "2026-10-20";
 const sup = (id: string, minOrder = 0, deliveryFee = 0, freeDeliveryOver: number | null = null): Supplier => ({

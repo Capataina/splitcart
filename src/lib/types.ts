@@ -19,12 +19,24 @@ export interface Supplier {
   freeDeliveryOver: number | null;
 }
 
+export interface PriceTest {
+  price: number; // £ per unit sold
+  weeklySold: number; // units sold per week at that price
+}
+
 export interface Product {
   id: string;
   name: string;
   unit: string;
   neededQty: number;
+  sellMin: number | null; // optional selling-price range
+  sellMax: number | null;
+  priceTests: PriceTest[];
 }
+
+export type PriceAdvice =
+  | { kind: "price"; price: number; unitCost: number; expectedWeekly: number; weeklyProfit: number; clamped: boolean }
+  | { kind: "need-data"; reason: string };
 
 /**
  * One way to buy a product from a supplier: `caseSize` units for `casePrice`, in

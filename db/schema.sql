@@ -26,6 +26,9 @@ create table if not exists products (
   name text not null,
   unit text not null default 'each',
   needed_qty numeric(10,2) not null default 0,         -- how much this order must cover
+  sell_min numeric(10,2) check (sell_min >= 0),        -- optional selling-price range (£ per unit)
+  sell_max numeric(10,2) check (sell_max >= 0),
+  price_tests jsonb not null default '[]',             -- [{price, weeklySold}] the owner has tried
   created_at timestamptz not null default now()
 );
 
