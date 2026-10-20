@@ -30,6 +30,12 @@ const PRODUCTS: [string, string, number][] = [
   ["Still water 500ml", "each", 48],
 ];
 
+// Resold items the café has tried prices on, so price advice has history to fit.
+const PRICE_TESTS: Record<string, { price: number; weeklySold: number }[]> = {
+  "Butter croissants": [{ price: 2.6, weeklySold: 130 }, { price: 3.0, weeklySold: 110 }, { price: 3.4, weeklySold: 80 }],
+  "Still water 500ml": [{ price: 1.2, weeklySold: 60 }, { price: 1.5, weeklySold: 48 }],
+};
+
 // [supplier, product, label, units per buy, price, promo?, promo days left?, max buys?]
 type O = [string, string, string, number, number, number?, number?, number?];
 const OFFERS: O[] = [
@@ -83,8 +89,9 @@ export async function createDemoCompany(): Promise<{ id: string; accessHash: str
   }
   const productIds = new Map<string, string>();
   for (const [name, unit, needed] of PRODUCTS) {
-    const [row] = (await q`insert into products (company_id, name, unit, needed_qty)
-      values (${id}, ${name}, ${unit}, ${needed}) returning id`) as { id: string }[];
+    const tests = JSON.stringify(PRICE_TESTS[name] ?? []);
+    const [row] = (await q`insert into products (company_id, name, unit, needed_qty, price_tests)
+      values (${id}, ${name}, ${unit}, ${needed}, ${tests}) returning id`) as { id: string }[];
     productIds.set(name, row.id);
   }
   await Promise.all(
