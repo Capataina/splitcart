@@ -101,7 +101,7 @@ export function ProductTable({
                 )}
               </ActionForm>
             </div>
-            {openId === p.id ? <PricingEditor product={p} save={savePricing} /> : null}
+            {openId === p.id ? <PricingEditor product={p} advice={advice[p.id]} save={savePricing} /> : null}
           </div>
         ))}
         <ActionForm action={create} className={`${COLS} gap-y-2 bg-background/60 px-2 py-3`}>
@@ -124,7 +124,8 @@ export function ProductTable({
 
 function AdviceText({ advice }: { advice: PriceAdvice | undefined }) {
   if (!advice) return <span className="text-muted">—</span>;
-  if (advice.kind === "need-data") return <span className="text-muted">{advice.reason}</span>;
+  // The full reason is long and repeats on most rows; the cell says what to do, the expander says why.
+  if (advice.kind === "need-data") return <span className="text-muted" title={advice.reason}>Add 2 prices you&apos;ve tried</span>;
   return (
     <span className="font-medium text-accent tabular-nums">
       {money(advice.price)} · ~{Math.round(advice.expectedWeekly)}/wk · {money(advice.weeklyProfit)} profit/wk
@@ -133,7 +134,7 @@ function AdviceText({ advice }: { advice: PriceAdvice | undefined }) {
 }
 
 /** Sell range and the prices the owner has tried; the advice is refitted on save. */
-function PricingEditor({ product: p, save }: { product: Product; save: Action }) {
+function PricingEditor({ product: p, advice, save }: { product: Product; advice: PriceAdvice | undefined; save: Action }) {
   // Row keys only; the values live in the uncontrolled inputs.
   const [rows, setRows] = useState(() => (p.priceTests.length ? p.priceTests : [{ price: NaN, weeklySold: NaN }]).map((t, i) => ({ key: i, ...t })));
   const [nextKey, setNextKey] = useState(rows.length);
@@ -143,6 +144,7 @@ function PricingEditor({ product: p, save }: { product: Product; save: Action })
       <p className="text-sm text-muted">
         We fit a demand curve to the prices you&apos;ve tried and pick the price that makes the most profit — not the highest price.
       </p>
+      {advice?.kind === "need-data" && <p className="mt-1 text-sm text-muted">{advice.reason}</p>}
       <ActionForm action={save} keepInputs className="mt-4 flex flex-wrap items-start gap-8">
         {() => (
           <>
