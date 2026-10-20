@@ -7,6 +7,13 @@ import type { Company, CompanyKind, Offer, OptimisationResult, Product, Supplier
 
 type Row = Record<string, unknown>;
 const num = (v: unknown) => (v === null || v === undefined ? null : Number(v));
+// The Neon driver parses `date` columns to a Date at local midnight; formatting with
+// toISOString would shift it a day back on any host east of UTC (BST included).
+const isoDate = (v: unknown) => {
+  if (!(v instanceof Date)) return String(v).slice(0, 10);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${v.getFullYear()}-${pad(v.getMonth() + 1)}-${pad(v.getDate())}`;
+};
 const isUuid = (s: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
 
 const toCompany = (r: Row): Company => ({
@@ -38,7 +45,7 @@ const toOffer = (r: Row): Offer => ({
   caseSize: Number(r.case_size),
   casePrice: Number(r.case_price),
   promoPrice: num(r.promo_price),
-  promoUntil: r.promo_until ? new Date(r.promo_until as string).toISOString().slice(0, 10) : null,
+  promoUntil: r.promo_until ? isoDate(r.promo_until) : null,
 });
 
 export async function createCompany(name: string, kind: CompanyKind, accessHash: string): Promise<string> {

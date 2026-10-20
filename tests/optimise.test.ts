@@ -109,13 +109,37 @@ test("unstocked products are reported, the rest still planned", async () => {
   assert.deepEqual(r.unavailable, ["saffron"]);
 });
 
-test("infeasible when no supplier minimum can be met", async () => {
-  // Only supplier needs £100 but the most the capped need can reach is £5.
+test("tops up a basket to clear a supplier minimum when that is cheapest", async () => {
+  // Need 1 milk; only supplier wants £10 minimum, singles £6 -> buy 2 = £12.
   const r = await optimise({
-    suppliers: [sup("A", 100)], products: [prod("milk", 1)], offers: [offer("A", "milk", 1, 5)],
+    suppliers: [sup("A", 10)], products: [prod("milk", 1)], offers: [offer("A", "milk", 1, 6)],
+  }, TODAY);
+  assert.equal(r.plan!.total, 12);
+  assert.ok(r.notes.some((n) => n.includes("more milk than needed")));
+});
+
+test("tops up to free delivery when the extra costs less than the fee", async () => {
+  // Need 9 at £5.50, fee £10 free at £50: 9 = £59.50, 10 = £55.
+  const r = await optimise({
+    suppliers: [sup("A", 0, 10, 50)], products: [prod("cups", 9)], offers: [offer("A", "cups", 1, 5.5)],
+  }, TODAY);
+  assert.equal(r.plan!.total, 55);
+});
+
+test("infeasible when no supplier minimum can be met", async () => {
+  // £100 minimum, but the only offer is limited to 5 buys of £5.
+  const r = await optimise({
+    suppliers: [sup("A", 100)], products: [prod("milk", 1)], offers: [offer("A", "milk", 1, 5, { maxBuys: 5 })],
   }, TODAY);
   assert.equal(r.status, "infeasible");
   assert.ok(r.notes.length > 0);
+});
+
+test("an offer from an unknown supplier is ignored, never bought free", async () => {
+  const r = await optimise({
+    suppliers: [sup("A")], products: [prod("milk", 1)], offers: [offer("A", "milk", 1, 5), offer("GONE", "milk", 1, 1)],
+  }, TODAY);
+  assert.equal(r.plan!.total, 5);
 });
 
 test("nothing to order when every quantity is zero", async () => {

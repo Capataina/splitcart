@@ -16,8 +16,8 @@ import type { Offer, OptimisationResult, OrderLine, Plan, Product, Supplier, Sup
  *        subtotal_s ≥ minOrder_s·y_s                  supplier minimum
  *        subtotal_s ≥ threshold_s·f_s,  f_s ≤ y_s     free delivery only when earned
  *
- * cap_k defaults to the buys that cover the need on their own, so the solver may
- * overbuy by at most one pack/case per offer (rounding), never stockpile.
+ * cap_k is the buys that cover the need plus enough extra to cross the supplier's
+ * minimum or free-delivery line (see purchaseOptions), or the offer's own limit.
  */
 
 export interface PurchaseOption {
@@ -33,19 +33,24 @@ const loadHighs = () => (highsPromise ??= highsLoader() as unknown as Promise<Hi
 
 const round2 = (x: number) => Math.round(x * 100) / 100;
 
-export function purchaseOptions(offers: Offer[], products: Product[], today: string): PurchaseOption[] {
+/** Today's date in the UK, where the businesses and their promo end dates live. */
+export const todayInLondon = () => new Date().toLocaleDateString("en-CA", { timeZone: "Europe/London" });
+
+export function purchaseOptions(offers: Offer[], products: Product[], suppliers: Supplier[], today: string): PurchaseOption[] {
   const need = new Map(products.map((p) => [p.id, p.neededQty]));
+  const supplierById = new Map(suppliers.map((s) => [s.id, s]));
   return offers
-    .filter((o) => (need.get(o.productId) ?? 0) > 0 && o.caseSize > 0)
+    .filter((o) => (need.get(o.productId) ?? 0) > 0 && o.caseSize > 0 && supplierById.has(o.supplierId))
     .map((o) => {
       const promoApplied = o.promoPrice !== null && o.promoUntil !== null && o.promoUntil >= today && o.promoPrice < o.casePrice;
-      const cover = Math.ceil(need.get(o.productId)! / o.caseSize);
-      return {
-        offer: o,
-        price: promoApplied ? o.promoPrice! : o.casePrice,
-        promoApplied,
-        cap: o.maxBuys === null ? cover : Math.min(cover, o.maxBuys),
-      };
+      const price = promoApplied ? o.promoPrice! : o.casePrice;
+      const s = supplierById.get(o.supplierId)!;
+      // Buying past the need only ever pays to lift this supplier's subtotal over its
+      // minimum or free-delivery line, so enough extra buys to cross the higher of the
+      // two keeps every optimal plan inside the bound while keeping the search finite.
+      const line = Math.max(s.minOrder, s.deliveryFee > 0 ? (s.freeDeliveryOver ?? 0) : 0);
+      const cover = Math.ceil(need.get(o.productId)! / o.caseSize) + (price > 0 ? Math.ceil(line / price) : 0);
+      return { offer: o, price, promoApplied, cap: o.maxBuys === null ? cover : Math.min(cover, o.maxBuys) };
     })
     .filter((o) => o.cap > 0);
 }
@@ -151,7 +156,7 @@ function solve(highs: Highs, suppliers: Supplier[], products: Product[], options
 export async function optimise(ws: Pick<Workspace, "suppliers" | "products" | "offers">, today: string): Promise<OptimisationResult> {
   const solvedAt = new Date().toISOString();
   const wanted = ws.products.filter((p) => p.neededQty > 0);
-  const options = purchaseOptions(ws.offers, ws.products, today);
+  const options = purchaseOptions(ws.offers, ws.products, ws.suppliers, today);
   const offered = new Set(options.map((o) => o.offer.productId));
   const unavailable = wanted.filter((p) => !offered.has(p.id)).map((p) => p.name);
   const orderable = wanted.filter((p) => offered.has(p.id));
@@ -181,6 +186,14 @@ export async function optimise(ws: Pick<Workspace, "suppliers" | "products" | "o
     if (single && (!baseline || single.total < baseline.plan.total)) baseline = { supplierName: s.name, plan: single };
   }
   if (!baseline) notes.push("No single supplier stocks everything, so there is no one-supplier order to compare against.");
+  for (const p of orderable) {
+    const lines = plan.orders.flatMap((o) => o.lines.filter((l) => l.productId === p.id));
+    const extra = lines.reduce((a, l) => a + l.unitsBought, 0) - p.neededQty;
+    // More than rounding up to a whole pack: the solver topped up on purpose.
+    if (lines.length && extra >= Math.min(...lines.map((l) => l.caseSize))) {
+      notes.push(`Buys ${round2(extra)} ${p.unit} more ${p.name} than needed: it's cheaper than missing a minimum order or paying delivery.`);
+    }
+  }
   if (options.some((o) => o.promoApplied)) notes.push("Live promotions were applied where they are still valid today.");
 
   track("optimise", {

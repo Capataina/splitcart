@@ -1,5 +1,5 @@
 import { verifyCode } from "@/lib/access";
-import { optimise } from "@/lib/optimise";
+import { optimise, todayInLondon } from "@/lib/optimise";
 import { addOffer, addProduct, addSupplier, getCompanyAuth, getWorkspace, saveRun, updateProduct } from "@/lib/repo";
 import { track, trackError } from "@/lib/telemetry";
 import type { Workspace } from "@/lib/types";
@@ -110,7 +110,7 @@ async function callTool(companyId: string, name: string, a: Args): Promise<unkno
     }
     case "optimise": {
       if (ws.company.plan === "free" && ws.runCount >= 1) throw new Error("The free optimisation has been used. Upgrade to Pro (£29/month) for unlimited runs.");
-      const result = await optimise(ws, new Date().toISOString().slice(0, 10));
+      const result = await optimise(ws, todayInLondon());
       const runId = await saveRun(companyId, result);
       return { runId, ...result };
     }
