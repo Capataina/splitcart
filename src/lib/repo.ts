@@ -14,6 +14,9 @@ const isoDate = (v: unknown) => {
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${v.getFullYear()}-${pad(v.getMonth() + 1)}-${pad(v.getDate())}`;
 };
+// Neon parses timestamptz to a Date; String() of a Date is a locale-style string
+// ("Tue Oct 20 2026 …") that agents and Date.parse handle badly, so return ISO.
+const iso = (v: unknown) => new Date(v as string).toISOString();
 const isUuid = (s: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
 
 const toCompany = (r: Row): Company => ({
@@ -21,7 +24,7 @@ const toCompany = (r: Row): Company => ({
   name: r.name as string,
   kind: r.kind as CompanyKind,
   plan: r.plan as Company["plan"],
-  createdAt: String(r.created_at),
+  createdAt: iso(r.created_at),
 });
 const toSupplier = (r: Row): Supplier => ({
   id: r.id as string,
@@ -159,12 +162,12 @@ export interface RunSummary {
 
 export async function listRuns(companyId: string): Promise<RunSummary[]> {
   const rows = (await sql()`select id, created_at, total, baseline from runs where company_id = ${companyId} order by created_at desc limit 20`) as Row[];
-  return rows.map((r) => ({ id: r.id as string, createdAt: String(r.created_at), total: num(r.total), baseline: num(r.baseline) }));
+  return rows.map((r) => ({ id: r.id as string, createdAt: iso(r.created_at), total: num(r.total), baseline: num(r.baseline) }));
 }
 
 export async function getRun(companyId: string, runId: string): Promise<{ createdAt: string; result: OptimisationResult } | null> {
   if (!isUuid(runId)) return null;
   const rows = (await sql()`select created_at, result from runs where id = ${runId} and company_id = ${companyId}`) as Row[];
   if (!rows[0]) return null;
-  return { createdAt: String(rows[0].created_at), result: rows[0].result as OptimisationResult };
+  return { createdAt: iso(rows[0].created_at), result: rows[0].result as OptimisationResult };
 }
