@@ -28,6 +28,7 @@ Body is JSON-RPC 2.0. It is also a standard MCP server (Streamable HTTP), so MCP
 - record_price_test {product, price, weeklySold}: a selling price tried and units sold per week.
 - set_sell_range {product, sellMin?, sellMax?}
 - price_advice {}: recommended selling price per product.
+- cheaper_elsewhere {}: suppliers the business doesn't use that list its products cheaper, from the shared price book.
 - optimise {}: solves and saves a run. The free plan includes one run; later calls return an upgrade message.
 
 Errors come back as a result with isError: true and a message saying what to fix (e.g. the list of known supplier names).

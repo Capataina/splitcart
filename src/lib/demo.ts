@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { hashCode } from "./access";
 import { sql } from "./db";
 import { track } from "./telemetry";
@@ -72,6 +73,36 @@ const OFFERS: O[] = [
   ["cc", "Still water 500ml", "Case of 24", 24, 4.75],
 ];
 
+// A second business whose suppliers the demo café doesn't use, so the shared price
+// book has something to find. Created once and reused by every demo.
+const PEER = "Harbour Deli (demo network)";
+const PEER_SUPPLIERS: S[] = [
+  { key: "river", name: "Riverside Wholesale", minOrder: 50, fee: 6, freeOver: 100 },
+  { key: "pack", name: "Packaging Direct", minOrder: 40, fee: 0, freeOver: null },
+];
+const PEER_OFFERS: [string, string, string, number, number][] = [
+  ["river", "Whole milk", "Case 6 x 2 l", 12, 8.4],
+  ["river", "Oat milk", "Case 6 x 1 l", 6, 9.6],
+  ["pack", "12oz takeaway cups", "Case of 1000", 1000, 54.0],
+];
+
+async function ensureNetworkPeer(q: ReturnType<typeof sql>) {
+  const existing = (await q`select id from companies where name = ${PEER} limit 1`) as { id: string }[];
+  if (existing.length) return;
+  const [{ id }] = (await q`insert into companies (name, kind, access_hash) values (${PEER}, 'shop', ${hashCode(randomUUID())}) returning id`) as { id: string }[];
+  const sup = new Map<string, string>();
+  for (const s of PEER_SUPPLIERS) {
+    const [r] = (await q`insert into suppliers (company_id, name, min_order, delivery_fee, free_delivery_over)
+      values (${id}, ${s.name}, ${s.minOrder}, ${s.fee}, ${s.freeOver}) returning id`) as { id: string }[];
+    sup.set(s.key, r.id);
+  }
+  for (const [s, product, label, size, price] of PEER_OFFERS) {
+    const unit = PRODUCTS.find(([n]) => n === product)![1];
+    const [p] = (await q`insert into products (company_id, name, unit, needed_qty) values (${id}, ${product}, ${unit}, 0) returning id`) as { id: string }[];
+    await q`insert into offers (supplier_id, product_id, label, case_size, case_price) values (${sup.get(s)}, ${p.id}, ${label}, ${size}, ${price})`;
+  }
+}
+
 const isoInDays = (days: number) => new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10);
 
 /** Creates a fresh demo company (access code "demo") and returns its id and access hash. */
@@ -79,6 +110,7 @@ export async function createDemoCompany(): Promise<{ id: string; accessHash: str
   const q = sql();
   const accessHash = hashCode(DEMO_CODE);
   track("demo_created");
+  await ensureNetworkPeer(q);
   const [{ id }] = (await q`insert into companies (name, kind, access_hash) values ('Corner Cup Café (demo)', 'cafe', ${accessHash}) returning id`) as { id: string }[];
 
   const supplierIds = new Map<string, string>();

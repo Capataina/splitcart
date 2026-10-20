@@ -1,5 +1,6 @@
 import { verifyCode } from "@/lib/access";
 import { optimise, todayInLondon } from "@/lib/optimise";
+import { findCheaperElsewhere } from "@/lib/network";
 import { adviseSellPrice, unitCost } from "@/lib/pricing";
 import { addOffer, addProduct, addSupplier, getCompanyAuth, getWorkspace, saveRun, updateProduct } from "@/lib/repo";
 import { track, trackError } from "@/lib/telemetry";
@@ -65,6 +66,7 @@ const TOOLS = [
     description: "Set the selling-price range (£ per unit) the owner is willing to charge for a product.",
     inputSchema: { type: "object", required: ["product"], properties: { product: { type: "string" }, sellMin: money, sellMax: money } },
   },
+  { name: "cheaper_elsewhere", description: "From the shared price book: suppliers this business doesn't use that list its products cheaper (only supplier list prices are shared between businesses).", inputSchema: { type: "object", properties: {} } },
   { name: "price_advice", description: "Profit-maximising selling price per product, fitted from the logged price tests and the cheapest unit cost.", inputSchema: { type: "object", properties: {} } },
   { name: "optimise", description: "Compute the cheapest legal split of the current order across suppliers and save it as a run.", inputSchema: { type: "object", properties: {} } },
 ];
@@ -132,6 +134,8 @@ async function callTool(companyId: string, name: string, a: Args): Promise<unkno
       await updateProduct(companyId, { ...p, sellMin: nonNeg(a, "sellMin", null), sellMax: nonNeg(a, "sellMax", null) });
       return `${p.name}: sell range updated`;
     }
+    case "cheaper_elsewhere":
+      return await findCheaperElsewhere(companyId);
     case "price_advice": {
       const today = todayInLondon();
       return ws.products.map((p) => ({ product: p.name, advice: adviseSellPrice(p, unitCost(p, ws.offers, today)) }));
