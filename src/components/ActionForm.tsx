@@ -85,7 +85,7 @@ export function SubmitButton({
     <button
       type="submit"
       disabled={pending}
-      className={`inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium disabled:opacity-60 ${styles} ${className}`}
+      className={`press inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium disabled:opacity-60 ${styles} ${className}`}
       {...rest}
     >
       {pending ? (pendingLabel ?? "Saving…") : children}

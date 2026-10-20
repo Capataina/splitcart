@@ -82,3 +82,13 @@ $f$;
 create index if not exists suppliers_company on suppliers(company_id);
 create index if not exists products_company on products(company_id);
 create index if not exists runs_company on runs(company_id, created_at desc);
+
+-- Supplier email (orders open in the owner's mail app) and list-price history (price alerts).
+alter table suppliers add column if not exists email text;
+create table if not exists offer_price_changes (
+  offer_id uuid not null references offers(id) on delete cascade,
+  old_price numeric(10,2) not null,
+  new_price numeric(10,2) not null,
+  at timestamptz not null default now()
+);
+create index if not exists offer_price_changes_offer on offer_price_changes(offer_id, at desc);

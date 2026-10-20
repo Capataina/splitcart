@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
+import { LogoMark } from "@/components/Logo";
 
 const PIN_KEY = "splitcart.sidebarPinned";
 
@@ -84,8 +85,8 @@ export function Sidebar({ companyId, companyName, lock }: { companyId: string; c
         className={`fixed inset-y-0 left-0 z-20 flex flex-col overflow-hidden border-r border-line bg-surface px-2 py-3 ${open ? "w-56 shadow-lg" : "w-14"} ${pinned ? "shadow-none" : ""}`}
       >
         <div className="flex h-10 items-center gap-3 px-2.5">
-          <Link href="/" className="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-accent text-xs font-bold text-white" aria-label="Splitcart home">
-            S
+          <Link href="/" className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg" aria-label="Splitcart home">
+            <LogoMark />
           </Link>
           <span className={`truncate text-sm font-semibold ${label}`}>{companyName}</span>
         </div>

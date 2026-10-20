@@ -115,8 +115,9 @@ export async function createDemoCompany(): Promise<{ id: string; accessHash: str
 
   const supplierIds = new Map<string, string>();
   for (const s of SUPPLIERS) {
-    const [row] = (await q`insert into suppliers (company_id, name, min_order, delivery_fee, free_delivery_over)
-      values (${id}, ${s.name}, ${s.minOrder}, ${s.fee}, ${s.freeOver}) returning id`) as { id: string }[];
+    // .example is reserved (RFC 2606), so a demo "Email order" can never reach a real inbox.
+    const [row] = (await q`insert into suppliers (company_id, name, min_order, delivery_fee, free_delivery_over, email)
+      values (${id}, ${s.name}, ${s.minOrder}, ${s.fee}, ${s.freeOver}, ${`orders@${s.key}.example`}) returning id`) as { id: string }[];
     supplierIds.set(s.key, row.id);
   }
   const productIds = new Map<string, string>();
@@ -133,5 +134,19 @@ export async function createDemoCompany(): Promise<{ id: string; accessHash: str
           ${promo !== undefined && days !== undefined ? isoInDays(days) : null}, ${max ?? null})`,
     ),
   );
+  // Two list prices that rose recently, so the price alerts have something to show.
+  await Promise.all(
+    PRICE_RISES.map(([s, p, oldPrice, daysAgo]) =>
+      q`insert into offer_price_changes (offer_id, old_price, new_price, at)
+        select o.id, ${oldPrice}, o.case_price, now() - make_interval(days => ${daysAgo})
+        from offers o where o.supplier_id = ${supplierIds.get(s)} and o.product_id = ${productIds.get(p)}`,
+    ),
+  );
   return { id, accessHash };
 }
+
+// [supplier, product, previous price, days since the change]
+const PRICE_RISES: [string, string, number, number][] = [
+  ["brake", "Oat milk", 10.2, 9],
+  ["jj", "Butter croissants", 17.9, 4],
+];

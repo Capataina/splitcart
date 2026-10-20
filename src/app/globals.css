@@ -39,3 +39,131 @@ body {
     display: none;
   }
 }
+
+/* Interaction states shared by every page: cards lift, buttons press, text links
+   grow an underline from the left, and every focusable thing gets one green ring. */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+.lift {
+  transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
+}
+.lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px -12px rgb(18 26 21 / 0.25);
+  border-color: #c4d4c9;
+}
+.press {
+  transition: transform 120ms ease, background-color 120ms ease, box-shadow 120ms ease;
+}
+.press:active {
+  transform: scale(0.98);
+}
+.link-slide {
+  background: linear-gradient(currentColor, currentColor) no-repeat 0 100% / 0 1px;
+  transition: background-size 200ms ease;
+}
+.link-slide:hover,
+.link-slide:focus-visible {
+  background-size: 100% 1px;
+}
+
+/* The dashboard's Optimise button until the first run: a light band sweeps across it. */
+.shimmer {
+  background-image: linear-gradient(110deg, transparent 35%, rgb(255 255 255 / 0.22) 50%, transparent 65%);
+  background-size: 250% 100%;
+  animation: shimmer 2.4s linear infinite;
+}
+@keyframes shimmer {
+  from { background-position: 150% 0; }
+  to { background-position: -100% 0; }
+}
+
+/* Section entrance: fade and rise once when the section first enters the viewport
+   (src/app/Reveal.tsx adds .is-in). */
+.reveal {
+  opacity: 0;
+  transform: translateY(16px);
+  transition: opacity 600ms ease, transform 600ms ease;
+}
+.reveal.is-in {
+  opacity: 1;
+  transform: none;
+}
+
+/* Landing illustrations: every loop shares one 6s tempo so they read as one scene.
+   Each keyframe set below describes one 6s cycle. */
+.loop { animation-duration: 6s; animation-iteration-count: infinite; animation-timing-function: ease-in-out; }
+
+/* Bento "Add what you need": rows appear one after another, hold, then clear. */
+.k-row1 { animation-name: row1; }
+.k-row2 { animation-name: row2; }
+.k-row3 { animation-name: row3; }
+@keyframes row1 { 0%, 5% { opacity: 0; transform: translateY(6px); } 12%, 88% { opacity: 1; transform: none; } 96%, 100% { opacity: 0; } }
+@keyframes row2 { 0%, 22% { opacity: 0; transform: translateY(6px); } 30%, 88% { opacity: 1; transform: none; } 96%, 100% { opacity: 0; } }
+@keyframes row3 { 0%, 40% { opacity: 0; transform: translateY(6px); } 48%, 88% { opacity: 1; transform: none; } 96%, 100% { opacity: 0; } }
+
+/* Minimum orders: the bar fills to the £79 line, the tick turns green. */
+.k-fill { animation-name: fill; transform-origin: left; }
+@keyframes fill { 0%, 8% { transform: scaleX(0.1); } 55%, 90% { transform: scaleX(1); } 100% { transform: scaleX(0.1); } }
+.k-tick { animation-name: tick; }
+@keyframes tick { 0%, 52% { opacity: 0.15; } 58%, 90% { opacity: 1; } 100% { opacity: 0.15; } }
+
+/* Delivery fees: "£12 delivery" flips to "Free delivery" as the basket crosses £129. */
+.k-fee { animation-name: fee; }
+.k-free { animation-name: free; }
+@keyframes fee { 0%, 45% { opacity: 1; } 52%, 92% { opacity: 0; } 100% { opacity: 1; } }
+@keyframes free { 0%, 45% { opacity: 0; } 52%, 92% { opacity: 1; } 100% { opacity: 0; } }
+
+/* Press optimise: dashes flow along the supplier routes into the basket. */
+.k-route { stroke-dasharray: 3 5; animation: route 6s linear infinite; }
+@keyframes route { to { stroke-dashoffset: -96; } }
+.k-glow { animation-name: glow; }
+@keyframes glow { 0%, 60% { opacity: 0; } 70%, 92% { opacity: 1; } 100% { opacity: 0; } }
+
+/* The optimise panel's total counts down £570 → £498: five stacked figures, each shown
+   for its slice of the loop, the last held until the reset. */
+.k-count0 { animation-name: count0; }
+.k-count1 { animation-name: count1; }
+.k-count2 { animation-name: count2; }
+.k-count3 { animation-name: count3; }
+.k-count4 { animation-name: count4; }
+@keyframes count0 { 0%, 21.9% { opacity: 1; } 22%, 100% { opacity: 0; } }
+@keyframes count1 { 0%, 21.9% { opacity: 0; } 22%, 33.9% { opacity: 1; } 34%, 100% { opacity: 0; } }
+@keyframes count2 { 0%, 33.9% { opacity: 0; } 34%, 45.9% { opacity: 1; } 46%, 100% { opacity: 0; } }
+@keyframes count3 { 0%, 45.9% { opacity: 0; } 46%, 57.9% { opacity: 1; } 58%, 100% { opacity: 0; } }
+@keyframes count4 { 0%, 57.9% { opacity: 0; } 58%, 97.9% { opacity: 1; } 98%, 100% { opacity: 0; } }
+
+/* AI terminal: three replies type out in turn (steps() set per line in the markup). */
+.k-type1 { animation-name: type1; }
+.k-type2 { animation-name: type2; }
+.k-type3 { animation-name: type3; }
+@keyframes type1 { 0%, 4% { width: 0; } 30%, 92% { width: 37ch; } 100% { width: 0; } }
+@keyframes type2 { 0%, 34% { width: 0; } 44%, 92% { width: 11ch; } 100% { width: 0; } }
+@keyframes type3 { 0%, 50% { width: 0; } 70%, 92% { width: 27ch; } 100% { width: 0; } }
+
+/* Download CSV: the file drops into the tray. */
+.k-drop { animation-name: drop; }
+@keyframes drop { 0%, 10% { transform: translateY(-14px); opacity: 0; } 30%, 80% { transform: none; opacity: 1; } 95%, 100% { transform: translateY(6px); opacity: 0; } }
+
+/* Copy the orders: the clipboard label turns into "Copied". */
+.k-copy { animation-name: copyA; }
+.k-copied { animation-name: copyB; }
+@keyframes copyA { 0%, 40% { opacity: 1; } 46%, 90% { opacity: 0; } 100% { opacity: 1; } }
+@keyframes copyB { 0%, 40% { opacity: 0; } 46%, 90% { opacity: 1; } 100% { opacity: 0; } }
+
+/* Reason cards: a strike across the unusable option, the fee bar overtaking the saving,
+   and two cases collapsing to one case plus one. */
+.k-strike { animation-name: strike; transform-origin: left; }
+@keyframes strike { 0%, 25% { transform: scaleX(0); } 45%, 90% { transform: scaleX(1); } 100% { transform: scaleX(0); } }
+.k-grow { animation-name: grow; transform-origin: left; }
+@keyframes grow { 0%, 15% { transform: scaleX(0); } 55%, 90% { transform: scaleX(1); } 100% { transform: scaleX(0); } }
+.k-fade-out { animation-name: fadeout; }
+@keyframes fadeout { 0%, 35% { opacity: 1; } 50%, 90% { opacity: 0.12; } 100% { opacity: 1; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .loop, .k-route, .shimmer { animation: none !important; }
+  .k-fee, .k-copied, .k-count0, .k-count1, .k-count2, .k-count3 { opacity: 0; }
+  .reveal { opacity: 1; transform: none; transition: none; }
+}

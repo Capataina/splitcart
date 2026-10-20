@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Splitcart — cheapest supplier split for independent food businesses",
+  title: "Splitcart: the cheapest supplier split for independent food businesses",
   description:
     "Splitcart's optimiser splits your wholesale order across suppliers for the lowest total, respecting minimum orders, delivery fees, case sizes and promos.",
 };

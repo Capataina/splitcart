@@ -3,7 +3,7 @@ import { freeRunUsed, ipHash, lockoutMinutes, recordFailure, saveRunIfAllowed } 
 import { optimise, todayInLondon } from "@/lib/optimise";
 import { findCheaperElsewhere, outsideOptions } from "@/lib/network";
 import { adviseSellPrice, unitCost } from "@/lib/pricing";
-import { addOffer, addProduct, addSupplier, getCompanyAuth, getWorkspace, saveRun, updateProduct } from "@/lib/repo";
+import { addOffer, addProduct, addSupplier, getCompanyAuth, getWorkspace, updateProduct } from "@/lib/repo";
 import { track, trackError } from "@/lib/telemetry";
 import type { Workspace } from "@/lib/types";
 

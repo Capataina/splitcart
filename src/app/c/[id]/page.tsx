@@ -38,12 +38,12 @@ export default async function OverviewPage({ params }: PageProps<"/c/[id]">) {
         <p className="mt-1 text-sm text-muted">
           {KIND_LABEL[company.kind] ?? company.kind} · {company.plan === "pro" ? "Pro" : "Free"} plan
           {company.name.endsWith("(demo)") ? (
-            <span className="ml-2 rounded bg-accent-soft px-1.5 py-0.5 text-accent">Demo workspace — access code: {DEMO_CODE}</span>
+            <span className="ml-2 rounded bg-accent-soft px-1.5 py-0.5 text-accent">Demo workspace. Access code: {DEMO_CODE}</span>
           ) : null}
         </p>
       </header>
 
-      <OptimisePanel action={runOptimiser.bind(null, id)} summary={summary} freePlanNote={freePlanNote} />
+      <OptimisePanel action={runOptimiser.bind(null, id)} summary={summary} freePlanNote={freePlanNote} firstRun={runs.length === 0} />
 
       <Card title="Past runs">
         {runs.length === 0 ? (
@@ -70,7 +70,7 @@ export default async function OverviewPage({ params }: PageProps<"/c/[id]">) {
                       </td>
                       <td className="px-5 py-2.5 text-right">{r.total === null ? "No plan" : money(r.total)}</td>
                       <td className={`px-5 py-2.5 text-right ${saved !== null && saved > 0.005 ? "font-medium text-accent" : "text-muted"}`}>
-                        {saved === null ? "—" : money(saved)}
+                        {saved === null ? "n/a" : money(saved)}
                       </td>
                     </tr>
                   );
@@ -98,7 +98,7 @@ export default async function OverviewPage({ params }: PageProps<"/c/[id]">) {
               <a href="/llms.txt" className="font-mono text-accent hover:underline">
                 {site}/llms.txt
               </a>{" "}
-              — it explains the API.
+              explains the API.
             </p>
           </div>
         </Card>

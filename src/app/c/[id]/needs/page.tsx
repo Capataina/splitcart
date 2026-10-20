@@ -2,7 +2,7 @@ import { todayInLondon } from "@/lib/optimise";
 import { adviseSellPrice, unitCost } from "@/lib/pricing";
 import { getWorkspace } from "@/lib/repo";
 import type { PriceAdvice } from "@/lib/types";
-import { createProduct, removeProduct, saveProduct, saveProductPricing } from "../actions";
+import { createProduct, saveProductPricing, saveProducts } from "../actions";
 import { ProductTable } from "../ProductTable";
 import { getUnlockedCompany } from "../unlocked";
 
@@ -24,9 +24,8 @@ export default async function NeedsPage({ params }: PageProps<"/c/[id]/needs">) 
           products={ws.products}
           advice={advice}
           create={createProduct.bind(null, id)}
-          save={saveProduct.bind(null, id)}
+          saveAll={saveProducts.bind(null, id)}
           savePricing={saveProductPricing.bind(null, id)}
-          remove={removeProduct.bind(null, id)}
         />
       </div>
     </div>

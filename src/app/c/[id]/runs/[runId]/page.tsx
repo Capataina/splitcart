@@ -26,6 +26,7 @@ export default async function RunPage({ params }: PageProps<"/c/[id]/runs/[runId
         <span className="text-muted">Optimised {dateTime(run.createdAt)}</span>
       </div>
       <Headline result={result} />
+      <NetworkSaving result={result} />
       <Warnings result={result} />
       {result.status === "optimal" && result.plan ? (
           <>
@@ -37,7 +38,7 @@ export default async function RunPage({ params }: PageProps<"/c/[id]/runs/[runId
             </div>
             <div className="mt-4 space-y-6">
               {result.plan.orders.map((order) => (
-                <PurchaseOrder key={order.supplierId} order={order} />
+                <PurchaseOrder key={order.supplierId} order={order} businessName={company.name} />
               ))}
             </div>
             {result.plan.orders.length > 1 ? (
@@ -87,7 +88,7 @@ function Headline({ result }: { result: OptimisationResult }) {
         <>
           <p className="text-5xl font-semibold tracking-tight text-accent tabular-nums sm:text-6xl">{money(savings)} saved</p>
           <h1 className="mt-3 text-xl font-medium tabular-nums sm:text-2xl">
-            {money(plan.total)} total — saves {money(savings)} vs ordering everything from {baseline?.supplierName}
+            {money(plan.total)} total, saving {money(savings)} vs ordering everything from {baseline?.supplierName}
           </h1>
           {baseline ? (
             <p className="mt-1 text-sm text-muted tabular-nums">
@@ -113,6 +114,44 @@ function Headline({ result }: { result: OptimisationResult }) {
       )}
     </div>
   );
+}
+
+/** What the order would cost with suppliers from the shared price book added. Older runs have no `network`. */
+function NetworkSaving({ result }: { result: OptimisationResult }) {
+  const net = result.network;
+  if (!net || !(net.extraSaving > 0.005)) return null;
+  const fresh = new Set(net.newSuppliers);
+  const lines = net.plan.orders.filter((o) => fresh.has(o.supplierName));
+  return (
+    <div className="mt-6 rounded-xl border-2 border-accent/40 bg-accent-soft p-5">
+      <p className="text-lg font-semibold tabular-nums text-accent">
+        Add {joinNames(net.newSuppliers)} and this order drops to {money(net.total)} (another {money(net.extraSaving)})
+      </p>
+      <p className="mt-1 text-sm text-muted">From the shared price book: list prices other Splitcart businesses have entered.</p>
+      {lines.length > 0 ? (
+        <details className="mt-3 text-sm">
+          <summary className="cursor-pointer font-medium text-accent">What you&apos;d buy from them</summary>
+          <ul className="mt-2 divide-y divide-accent/15 tabular-nums">
+            {lines.flatMap((o) =>
+              o.lines.map((l) => (
+                <li key={`${o.supplierId}-${l.productId}-${l.offerLabel}`} className="flex justify-between gap-4 py-1.5">
+                  <span>
+                    {l.productName} <span className="text-muted">({l.offerLabel}) from {o.supplierName}</span>
+                  </span>
+                  <span className="whitespace-nowrap">{money(l.lineTotal)}</span>
+                </li>
+              )),
+            )}
+          </ul>
+        </details>
+      ) : null}
+    </div>
+  );
+}
+
+function joinNames(names: string[]): string {
+  if (names.length <= 1) return names[0] ?? "these suppliers";
+  return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
 }
 
 function Warnings({ result }: { result: OptimisationResult }) {
@@ -143,12 +182,43 @@ function Warnings({ result }: { result: OptimisationResult }) {
   );
 }
 
-function PurchaseOrder({ order }: { order: SupplierOrder }) {
+/**
+ * A mailto link that opens the owner's own mail app with the order written out, so
+ * it is sent from their address and we never send email or touch their mailbox.
+ */
+function orderMailto(order: SupplierOrder, businessName: string): string {
+  const date = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "Europe/London" });
+  const lines = order.lines.map((l) => `- ${l.cases} x ${l.offerLabel || `${l.caseSize} ${l.unit}`} ${l.productName} @ £${l.casePrice.toFixed(2)} = £${l.lineTotal.toFixed(2)}`);
+  const body = [
+    "Hello,",
+    "",
+    `Please could we order the following for delivery:`,
+    "",
+    ...lines,
+    "",
+    `Goods total: £${order.subtotal.toFixed(2)}`,
+    "",
+    "Thanks,",
+    businessName,
+  ].join("\n");
+  return `mailto:${encodeURIComponent(order.supplierEmail ?? "")}?subject=${encodeURIComponent(`Order from ${businessName}, ${date}`)}&body=${encodeURIComponent(body)}`;
+}
+
+function PurchaseOrder({ order, businessName }: { order: SupplierOrder; businessName: string }) {
   return (
     <article className="overflow-hidden rounded-xl border border-line bg-surface shadow-sm">
-      <header className="flex items-baseline justify-between gap-4 border-b border-line px-5 py-4">
+      <header className="flex items-center justify-between gap-4 border-b border-line px-5 py-4">
         <h3 className="text-lg font-semibold">{order.supplierName}</h3>
-        <p className="text-lg font-semibold tabular-nums">{money(order.total)}</p>
+        <div className="flex items-center gap-4">
+          <a
+            href={orderMailto(order, businessName)}
+            className="rounded-lg border border-line px-3 py-1.5 text-sm font-medium transition hover:border-accent hover:text-accent active:scale-[0.98]"
+            title={order.supplierEmail ? `Opens your mail app addressed to ${order.supplierEmail}` : "Opens your mail app; add the supplier's email to fill in the address"}
+          >
+            Email order
+          </a>
+          <p className="text-lg font-semibold tabular-nums">{money(order.total)}</p>
+        </div>
       </header>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[36rem] text-sm">

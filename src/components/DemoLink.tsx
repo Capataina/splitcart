@@ -15,7 +15,7 @@ export function DemoLink() {
 function DemoSubmit() {
   const { pending } = useFormStatus();
   return (
-    <button type="submit" disabled={pending} className="text-sm text-muted underline-offset-4 hover:text-foreground hover:underline disabled:opacity-60">
+    <button type="submit" disabled={pending} className="link-slide pb-0.5 text-sm text-muted hover:text-foreground disabled:opacity-60">
       {pending ? "Setting up the demo café…" : "or try the demo café"}
     </button>
   );

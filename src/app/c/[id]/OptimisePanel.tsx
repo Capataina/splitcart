@@ -8,10 +8,13 @@ export function OptimisePanel({
   action,
   summary,
   freePlanNote,
+  firstRun,
 }: {
   action: (prev: OptimiseState) => Promise<OptimiseState>;
   summary: string;
   freePlanNote: string | null;
+  /** No run yet: the button shimmers to say "start here". */
+  firstRun: boolean;
 }) {
   const [state, formAction, pending] = useActionState(action, undefined);
   // The modal opens on each new { upgrade } result and closes locally.
@@ -19,7 +22,7 @@ export function OptimisePanel({
   const showUpgrade = state?.upgrade === true && dismissed !== state;
 
   return (
-    <div className="flex flex-col gap-4 rounded-xl border border-line bg-surface p-5 sm:flex-row sm:items-center sm:justify-between">
+    <div className="lift flex flex-col gap-4 rounded-xl border border-line bg-surface p-5 sm:flex-row sm:items-center sm:justify-between">
       <div>
         <h2 className="text-lg font-semibold">Find the cheapest split</h2>
         <p className="mt-1 text-sm text-muted tabular-nums">{summary}</p>
@@ -34,7 +37,7 @@ export function OptimisePanel({
         <button
           type="submit"
           disabled={pending}
-          className="w-full rounded-lg bg-accent px-8 py-3.5 text-base font-semibold text-white hover:bg-accent-strong disabled:opacity-60 sm:w-auto"
+          className={`press w-full rounded-lg bg-accent px-8 py-3.5 text-base font-semibold text-white shadow-sm hover:bg-accent-strong hover:shadow-md disabled:opacity-60 sm:w-auto ${firstRun && !pending ? "shimmer" : ""}`}
         >
           {pending ? "Optimising…" : "Optimise order"}
         </button>

@@ -29,6 +29,7 @@ const toSupplier = (r: Row): Supplier => ({
   minOrder: Number(r.min_order),
   deliveryFee: Number(r.delivery_fee),
   freeDeliveryOver: num(r.free_delivery_over),
+  email: (r.email as string | null) ?? null,
 });
 const toProduct = (r: Row): Product => ({
   id: r.id as string,
@@ -49,6 +50,7 @@ const toOffer = (r: Row): Offer => ({
   casePrice: Number(r.case_price),
   promoPrice: num(r.promo_price),
   promoUntil: r.promo_until ? isoDate(r.promo_until) : null,
+  lastChange: r.old_price === undefined || r.old_price === null ? null : { from: Number(r.old_price), at: new Date(r.changed_at as string).toISOString() },
 });
 
 export async function createCompany(name: string, kind: CompanyKind, accessHash: string): Promise<string> {
@@ -70,7 +72,10 @@ export async function getWorkspace(companyId: string): Promise<Workspace | null>
     q`select * from companies where id = ${companyId}`,
     q`select * from suppliers where company_id = ${companyId} order by created_at`,
     q`select * from products where company_id = ${companyId} order by created_at`,
-    q`select o.* from offers o join suppliers s on s.id = o.supplier_id where s.company_id = ${companyId}`,
+    // Each offer with its most recent list-price change, for price alerts.
+    q`select o.*, ch.old_price, ch.at as changed_at from offers o join suppliers s on s.id = o.supplier_id
+      left join lateral (select old_price, at from offer_price_changes c where c.offer_id = o.id order by at desc limit 1) ch on true
+      where s.company_id = ${companyId}`,
     q`select count(*)::int as n from runs where company_id = ${companyId}`,
   ])) as Row[][];
   if (!c[0]) return null;
@@ -84,13 +89,15 @@ export async function getWorkspace(companyId: string): Promise<Workspace | null>
 }
 
 export async function addSupplier(companyId: string, s: Omit<Supplier, "id">) {
-  await sql()`insert into suppliers (company_id, name, min_order, delivery_fee, free_delivery_over)
-    values (${companyId}, ${s.name}, ${s.minOrder}, ${s.deliveryFee}, ${s.freeDeliveryOver})`;
+  await sql()`insert into suppliers (company_id, name, min_order, delivery_fee, free_delivery_over, email)
+    values (${companyId}, ${s.name}, ${s.minOrder}, ${s.deliveryFee}, ${s.freeDeliveryOver}, ${s.email ?? null})`;
 }
 
+/** `email` left undefined keeps the stored address. */
 export async function updateSupplier(companyId: string, s: Supplier) {
   await sql()`update suppliers set name = ${s.name}, min_order = ${s.minOrder}, delivery_fee = ${s.deliveryFee},
-    free_delivery_over = ${s.freeDeliveryOver} where id = ${s.id} and company_id = ${companyId}`;
+    free_delivery_over = ${s.freeDeliveryOver}, email = case when ${s.email === undefined} then email else ${s.email ?? null} end
+    where id = ${s.id} and company_id = ${companyId}`;
 }
 
 export async function deleteSupplier(companyId: string, supplierId: string) {
@@ -123,6 +130,10 @@ export async function addOffer(companyId: string, o: Omit<Offer, "id">) {
 }
 
 export async function updateOffer(companyId: string, o: Offer) {
+  // Log a list-price change before overwriting it; this history drives price alerts.
+  await sql()`insert into offer_price_changes (offer_id, old_price, new_price)
+    select o.id, o.case_price, ${o.casePrice} from offers o join suppliers s on s.id = o.supplier_id
+    where o.id = ${o.id} and s.company_id = ${companyId} and o.case_price <> ${o.casePrice}`;
   await sql()`update offers o set label = ${o.label}, case_size = ${o.caseSize}, case_price = ${o.casePrice},
     promo_price = ${o.promoPrice}, promo_until = ${o.promoUntil}, max_buys = ${o.maxBuys}
     from suppliers s where o.id = ${o.id} and s.id = o.supplier_id and s.company_id = ${companyId}`;

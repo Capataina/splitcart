@@ -147,7 +147,7 @@ function solve(highs: Highs, suppliers: Supplier[], products: Product[], options
     // Recomputed from the subtotal rather than read from f_s, so the plan can never
     // show a fee the supplier's own rule would waive.
     const deliveryFee = s.freeDeliveryOver !== null && subtotal >= s.freeDeliveryOver ? 0 : s.deliveryFee;
-    if (lines.length) orders.push({ supplierId: s.id, supplierName: s.name, lines, subtotal, deliveryFee, total: round2(subtotal + deliveryFee) });
+    if (lines.length) orders.push({ supplierId: s.id, supplierName: s.name, supplierEmail: s.email ?? null, lines, subtotal, deliveryFee, total: round2(subtotal + deliveryFee) });
   });
 
   const goodsTotal = round2(orders.reduce((a, o) => a + o.subtotal, 0));

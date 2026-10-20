@@ -17,6 +17,7 @@ export interface Supplier {
   minOrder: number;
   deliveryFee: number;
   freeDeliveryOver: number | null;
+  email?: string | null; // where orders go; used for a mailto link from the owner's own mail app
 }
 
 export interface PriceTest {
@@ -52,6 +53,7 @@ export interface Offer {
   promoPrice: number | null; // replaces casePrice while promoUntil >= today
   promoUntil: string | null; // ISO date, inclusive
   maxBuys: number | null; // per-order cap (promo limit, stock)
+  lastChange?: { from: number; at: string } | null; // most recent list-price change, for alerts
 }
 
 export interface Workspace {
@@ -78,6 +80,7 @@ export interface OrderLine {
 export interface SupplierOrder {
   supplierId: string;
   supplierName: string;
+  supplierEmail?: string | null;
   lines: OrderLine[];
   subtotal: number;
   deliveryFee: number; // 0 when the free-delivery threshold is reached
