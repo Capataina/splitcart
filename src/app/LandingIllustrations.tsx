@@ -10,9 +10,12 @@ const ACCENT = "var(--color-accent)";
 const LINE = "var(--color-line)";
 const MUTED = "var(--color-muted)";
 
-function Panel({ title, body, children, className = "" }: { title: string; body: string; children: ReactNode; className?: string }) {
+function Panel({ title, body, children, className = "", phase = 0 }: { title: string; body: string; children: ReactNode; className?: string; phase?: number }) {
   return (
-    <div className={`lift flex min-h-0 flex-col overflow-hidden rounded-xl border border-line bg-surface p-3 sm:p-4 ${className}`}>
+    <div
+      className={`lift flex min-h-0 flex-col overflow-hidden rounded-xl border border-line bg-surface p-3 sm:p-4 ${className}`}
+      style={{ ["--phase" as string]: `${-phase}s` }}
+    >
       <div className="flex min-h-0 flex-1 items-center justify-center">{children}</div>
       <h3 className="mt-2 text-sm font-semibold sm:text-base">{title}</h3>
       <p className="text-xs text-muted sm:text-sm">{body}</p>
@@ -43,11 +46,24 @@ function NeedsList() {
   );
 }
 
+/** A rounded fill revealed by a growing clip rect, so the pill's ends never stretch.
+ *  Each caller passes its own clip id (both bars render once on the page). */
+function RevealedBar({ id, width, clipClass }: { id: string; width: number; clipClass: string }) {
+  return (
+    <>
+      <clipPath id={id}>
+        <rect className={`loop ${clipClass}`} x="2" y="14" width={width} height="13" />
+      </clipPath>
+      <rect x="2" y="16" width={width} height="9" rx="4.5" fill={LINE} />
+      <rect className="loop k-fillfade" x="2" y="16" width={width} height="9" rx="4.5" fill={ACCENT} clipPath={`url(#${id})`} />
+    </>
+  );
+}
+
 function MinimumBar() {
   return (
     <svg viewBox="0 0 120 34" className="h-10 w-full max-w-[12rem] sm:h-full sm:max-h-14" aria-hidden>
-      <rect x="2" y="16" width="92" height="9" rx="4.5" fill={LINE} />
-      <rect className="loop k-fill" x="2" y="16" width="92" height="9" rx="4.5" fill={ACCENT} />
+      <RevealedBar id="bento-min-clip" width={92} clipClass="k-fill" />
       <line x1="94" y1="10" x2="94" y2="31" stroke={MUTED} strokeDasharray="2 2" />
       <text x="94" y="8" fontSize="8" textAnchor="middle" fill={MUTED}>£79 min</text>
       <g className="loop k-tick">
@@ -58,21 +74,33 @@ function MinimumBar() {
   );
 }
 
+/** The basket fills toward the £129 free-delivery line while its total counts up; crossing
+ *  the line flips the chip. Bar width 96 is £134, so the marker at x 94 is £129. */
 function DeliveryChip() {
   return (
-    <div className="flex flex-col items-center gap-1 text-xs">
-      <span className="relative inline-grid tabular-nums text-muted">
-        <span className="loop k-fee col-start-1 row-start-1 text-center">Basket £96</span>
-        <span className="loop k-free col-start-1 row-start-1 text-center">Basket £134</span>
-      </span>
-      <span className="relative inline-grid">
-        <span className="loop k-fee col-start-1 row-start-1 rounded-full border border-line bg-background px-3 py-1 font-medium">
-          £12 delivery
+    <div className="flex w-full flex-col items-center gap-1 text-xs">
+      <svg viewBox="0 0 120 34" className="h-8 w-full max-w-[12rem]" aria-hidden>
+        <RevealedBar id="bento-deliv-clip" width={96} clipClass="k-deliv" />
+        <line x1="94" y1="10" x2="94" y2="31" stroke={MUTED} strokeDasharray="2 2" />
+        <text x="94" y="8" fontSize="8" textAnchor="middle" fill={MUTED}>£129 free</text>
+      </svg>
+      <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1">
+        <span className="relative h-4 w-20 text-center tabular-nums text-muted">
+          {["£96", "£108", "£121", "£134"].map((v, i) => (
+            <span key={v} className={`loop k-dc${i} absolute inset-0`}>
+              Basket {v}
+            </span>
+          ))}
         </span>
-        <span className="loop k-free col-start-1 row-start-1 rounded-full bg-accent-soft px-3 py-1 text-center font-medium text-accent">
-          Free delivery
+        <span className="relative inline-grid">
+          <span className="loop k-fee col-start-1 row-start-1 rounded-full border border-line bg-background px-3 py-1 font-medium">
+            £12 delivery
+          </span>
+          <span className="loop k-free col-start-1 row-start-1 rounded-full bg-accent-soft px-3 py-1 text-center font-medium text-accent">
+            Free delivery
+          </span>
         </span>
-      </span>
+      </div>
     </div>
   );
 }
@@ -159,23 +187,24 @@ export function HowItWorksBento() {
       <Panel title="Add what you need" body="Each product and how much this order." className="col-span-2 md:row-span-2">
         <NeedsList />
       </Panel>
-      <Panel title="Minimum orders" body="We only use a supplier once you clear their minimum.">
+      <Panel title="Minimum orders" body="We only use a supplier once you clear their minimum." phase={0.6}>
         <MinimumBar />
       </Panel>
-      <Panel title="Delivery fees" body="Free over £129? We'll get you over it.">
+      <Panel title="Delivery fees" body="Free over £129? We'll get you over it." phase={1.4}>
         <DeliveryChip />
       </Panel>
       <Panel
         title="Press optimise"
+        phase={2.2}
         body="Every supplier, case size and offer checked. One cheapest split."
         className="col-span-2 md:col-start-3 md:row-span-2 md:row-start-2"
       >
         <OptimiseRoutes />
       </Panel>
-      <Panel title="Download CSV" body="One order per supplier." className="md:col-start-1 md:row-start-3">
+      <Panel title="Download CSV" body="One order per supplier." className="md:col-start-1 md:row-start-3" phase={3}>
         <CsvDrop />
       </Panel>
-      <Panel title="Copy the orders" body="Paste straight into an email." className="md:col-start-2 md:row-start-3">
+      <Panel title="Copy the orders" body="Paste straight into an email." className="md:col-start-2 md:row-start-3" phase={3.8}>
         <CopyOrders />
       </Panel>
     </div>
@@ -228,31 +257,35 @@ export function CasesIllustration() {
   );
 }
 
-/** The AI section's mock assistant: three lines type out in turn on the shared tempo. */
+/** The AI section's mock agent: the owner asks one question and five replies type out in
+ *  turn on their own 10s loop (longer than the shared 6s, because five lines in 6s read as
+ *  a flicker). Each line's typed width is its --w in ch, so the keyframes stay generic. */
 export function AiTerminal() {
   const lines = [
-    { text: "Added 14 prices from Jay & Jay's PDF.", n: 37, k: "type1" },
-    { text: "Optimising…", n: 11, k: "type2" },
-    { text: "Saved £72.32 on this order.", n: 27, k: "type3" },
-  ];
+    { text: "Imported 3 price lists from your inbox.", k: "ai1" },
+    { text: "Optimised next month's order.", k: "ai2" },
+    { text: "£72.32 cheaper than one supplier.", k: "ai3" },
+    { text: "Orders drafted to 3 suppliers.", k: "ai4" },
+    { text: "Want me to send them?", k: "ai5" },
+  ].map((l) => ({ ...l, n: [...l.text].length }));
   return (
     <div className="lift overflow-hidden rounded-xl border border-line bg-[#0f1a14] text-sm text-[#d6eadc] shadow-sm">
       <div className="flex items-center gap-1.5 border-b border-white/10 px-4 py-2.5">
         <span className="h-2.5 w-2.5 rounded-full bg-white/20" />
         <span className="h-2.5 w-2.5 rounded-full bg-white/20" />
         <span className="h-2.5 w-2.5 rounded-full bg-white/20" />
-        <span className="ml-2 text-xs text-white/50">Your AI assistant</span>
+        <span className="ml-2 text-xs text-white/60">Your AI agent</span>
       </div>
       <div className="space-y-2 p-4 font-mono text-xs sm:text-sm">
-        <p className="text-white/60">
-          <span className="text-[#9fd0b0]">you</span> Here&apos;s Jay &amp; Jay&apos;s new price list. Update Splitcart and optimise.
+        <p className="text-white/80">
+          <span className="mr-2 text-[#9fd0b0]">you</span>Where should we buy next month?
         </p>
         {lines.map((l) => (
           <p key={l.k} className="flex">
             <span className="mr-2 text-[#9fd0b0]">ai</span>
             <span
               className={`loop k-${l.k} inline-block overflow-hidden whitespace-nowrap`}
-              style={{ animationTimingFunction: `steps(${l.n})`, maxWidth: `${l.n}ch` }}
+              style={{ animationTimingFunction: `steps(${l.n})`, animationDuration: "10s", maxWidth: `${l.n}ch`, ["--w" as string]: `${l.n}ch` }}
             >
               {l.text}
             </span>

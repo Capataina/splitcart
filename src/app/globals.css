@@ -31,11 +31,23 @@ body {
   color: var(--foreground);
 }
 
-/* Landing hero background: dots travel from three supplier nodes to one basket.
-   Ambient only, so slow, faint and one shared 9s tempo (SVG animateMotion, in
-   src/app/FlowBackground.tsx); the moving dots are removed under reduced motion. */
+/* Landing hero background: price tags travel from four supplier stalls to one basket
+   (src/app/FlowBackground.tsx). Ambient only, so slow, faint and one shared 8s tempo.
+   The mask thins the scene to ~35% behind the text column (left, mid-height), which
+   keeps muted text above 4.5:1; it reaches full strength only at the edges and behind
+   the opaque example card. The light along the cheapest routes is a dash of 14 in a
+   pathLength of 100, moved by exactly one period (114) per loop, so the seam matches. */
+.flow-mask {
+  mask-image: radial-gradient(ellipse 42% 48% at 30% 50%, rgb(0 0 0 / 0.35) 55%, #000 100%);
+}
+.flow-light {
+  stroke-dasharray: 14 100;
+  animation: flowlight 8s linear infinite;
+}
+@keyframes flowlight { from { stroke-dashoffset: 14; } to { stroke-dashoffset: -100; } }
 @media (prefers-reduced-motion: reduce) {
-  .flow-dot {
+  .flow-dot,
+  .flow-light {
     display: none;
   }
 }
@@ -93,8 +105,18 @@ body {
 }
 
 /* Landing illustrations: every loop shares one 6s tempo so they read as one scene.
-   Each keyframe set below describes one 6s cycle. */
-.loop { animation-duration: 6s; animation-iteration-count: infinite; animation-timing-function: ease-in-out; }
+   Each keyframe set below describes one 6s cycle.
+   One easing for every loop (the standard ease-out curve, so motion settles rather than
+   swings). Panels stagger by a negative --phase (set per panel in the markup) so they keep
+   the 6s tempo without pulsing in lockstep. Every loop fades out before it resets, so the
+   seam is never a hard cut. SVG parts that scale use transform-box: fill-box, because on
+   SVG transform-origin otherwise resolves against the whole drawing, not the element. */
+.loop {
+  animation-duration: 6s;
+  animation-iteration-count: infinite;
+  animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  animation-delay: var(--phase, 0s);
+}
 
 /* Bento "Add what you need": rows appear one after another, hold, then clear. */
 .k-row1 { animation-name: row1; }
@@ -104,17 +126,39 @@ body {
 @keyframes row2 { 0%, 22% { opacity: 0; transform: translateY(6px); } 30%, 88% { opacity: 1; transform: none; } 96%, 100% { opacity: 0; } }
 @keyframes row3 { 0%, 40% { opacity: 0; transform: translateY(6px); } 48%, 88% { opacity: 1; transform: none; } 96%, 100% { opacity: 0; } }
 
-/* Minimum orders: the bar fills to the £79 line, the tick turns green. */
-.k-fill { animation-name: fill; transform-origin: left; }
-@keyframes fill { 0%, 8% { transform: scaleX(0.1); } 55%, 90% { transform: scaleX(1); } 100% { transform: scaleX(0.1); } }
-.k-tick { animation-name: tick; }
-@keyframes tick { 0%, 52% { opacity: 0.15; } 58%, 90% { opacity: 1; } 100% { opacity: 0.15; } }
+/* Minimum orders and Delivery fees share one grammar: a clip rect grows to reveal a
+   full-width rounded fill (so the pill never stretches), reaching the dashed marker at
+   50%; the outcome (tick, free chip) pops in only once the fill is there; the fill fades
+   out at 88-96% and resets while invisible. */
+.k-fill, .k-deliv { transform-box: fill-box; transform-origin: left; }
+.k-fill { animation-name: fill; }
+@keyframes fill { 0%, 6% { transform: scaleX(0.08); } 50%, 100% { transform: scaleX(1); } }
+.k-fillfade { animation-name: fillfade; }
+@keyframes fillfade { 0% { opacity: 0; } 6%, 88% { opacity: 1; } 96%, 100% { opacity: 0; } }
+.k-tick { animation-name: tick; transform-box: fill-box; transform-origin: center; }
+@keyframes tick {
+  0%, 50% { opacity: 0; transform: scale(0.6); }
+  56% { opacity: 1; transform: scale(1.12); }
+  62%, 88% { opacity: 1; transform: scale(1); }
+  96%, 100% { opacity: 0; transform: scale(1); }
+}
 
-/* Delivery fees: "£12 delivery" flips to "Free delivery" as the basket crosses £129. */
+/* Delivery: the basket fill runs from £96 (0.71) to the £129 marker (0.958) at 50% and on
+   to £134 (1); the total counts up beneath in four slices, and the chip flips to free at 50%. */
+.k-deliv { animation-name: deliv; }
+@keyframes deliv { 0%, 6% { transform: scaleX(0.71); } 50% { transform: scaleX(0.958); } 58%, 100% { transform: scaleX(1); } }
 .k-fee { animation-name: fee; }
 .k-free { animation-name: free; }
-@keyframes fee { 0%, 45% { opacity: 1; } 52%, 92% { opacity: 0; } 100% { opacity: 1; } }
-@keyframes free { 0%, 45% { opacity: 0; } 52%, 92% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes fee { 0%, 48% { opacity: 1; transform: none; } 53%, 90% { opacity: 0; transform: scale(0.96); } 98%, 100% { opacity: 1; transform: none; } }
+@keyframes free { 0%, 48% { opacity: 0; transform: scale(0.96); } 53% { opacity: 1; transform: scale(1.04); } 58%, 90% { opacity: 1; transform: none; } 98%, 100% { opacity: 0; transform: scale(0.96); } }
+.k-dc0 { animation-name: dc0; }
+.k-dc1 { animation-name: dc1; }
+.k-dc2 { animation-name: dc2; }
+.k-dc3 { animation-name: dc3; }
+@keyframes dc0 { 0% { opacity: 0; } 4%, 19.9% { opacity: 1; } 20%, 100% { opacity: 0; } }
+@keyframes dc1 { 0%, 19.9% { opacity: 0; } 20%, 34.9% { opacity: 1; } 35%, 100% { opacity: 0; } }
+@keyframes dc2 { 0%, 34.9% { opacity: 0; } 35%, 49.9% { opacity: 1; } 50%, 100% { opacity: 0; } }
+@keyframes dc3 { 0%, 49.9% { opacity: 0; } 50%, 88% { opacity: 1; } 96%, 100% { opacity: 0; } }
 
 /* Press optimise: dashes flow along the supplier routes into the basket. */
 .k-route { stroke-dasharray: 3 5; animation: route 6s linear infinite; }
@@ -129,19 +173,25 @@ body {
 .k-count2 { animation-name: count2; }
 .k-count3 { animation-name: count3; }
 .k-count4 { animation-name: count4; }
-@keyframes count0 { 0%, 21.9% { opacity: 1; } 22%, 100% { opacity: 0; } }
+@keyframes count0 { 0% { opacity: 0; } 4%, 21.9% { opacity: 1; } 22%, 100% { opacity: 0; } }
 @keyframes count1 { 0%, 21.9% { opacity: 0; } 22%, 33.9% { opacity: 1; } 34%, 100% { opacity: 0; } }
 @keyframes count2 { 0%, 33.9% { opacity: 0; } 34%, 45.9% { opacity: 1; } 46%, 100% { opacity: 0; } }
 @keyframes count3 { 0%, 45.9% { opacity: 0; } 46%, 57.9% { opacity: 1; } 58%, 100% { opacity: 0; } }
 @keyframes count4 { 0%, 57.9% { opacity: 0; } 58%, 97.9% { opacity: 1; } 98%, 100% { opacity: 0; } }
 
-/* AI terminal: three replies type out in turn (steps() set per line in the markup). */
-.k-type1 { animation-name: type1; }
-.k-type2 { animation-name: type2; }
-.k-type3 { animation-name: type3; }
-@keyframes type1 { 0%, 4% { width: 0; } 30%, 92% { width: 37ch; } 100% { width: 0; } }
-@keyframes type2 { 0%, 34% { width: 0; } 44%, 92% { width: 11ch; } 100% { width: 0; } }
-@keyframes type3 { 0%, 50% { width: 0; } 70%, 92% { width: 27ch; } 100% { width: 0; } }
+/* AI terminal: five replies type out in turn on a 10s loop (steps(), the duration and
+   --w, the line's length in ch, are set per line in the markup), hold, then fade out
+   together before the widths reset, so the seam is invisible. */
+.k-ai1 { animation-name: ai1; }
+.k-ai2 { animation-name: ai2; }
+.k-ai3 { animation-name: ai3; }
+.k-ai4 { animation-name: ai4; }
+.k-ai5 { animation-name: ai5; }
+@keyframes ai1 { 0%, 4% { width: 0; opacity: 1; } 16%, 90% { width: var(--w); opacity: 1; } 97% { width: var(--w); opacity: 0; } 100% { width: 0; opacity: 0; } }
+@keyframes ai2 { 0%, 20% { width: 0; opacity: 1; } 29%, 90% { width: var(--w); opacity: 1; } 97% { width: var(--w); opacity: 0; } 100% { width: 0; opacity: 0; } }
+@keyframes ai3 { 0%, 33% { width: 0; opacity: 1; } 43%, 90% { width: var(--w); opacity: 1; } 97% { width: var(--w); opacity: 0; } 100% { width: 0; opacity: 0; } }
+@keyframes ai4 { 0%, 48% { width: 0; opacity: 1; } 58%, 90% { width: var(--w); opacity: 1; } 97% { width: var(--w); opacity: 0; } 100% { width: 0; opacity: 0; } }
+@keyframes ai5 { 0%, 62% { width: 0; opacity: 1; } 70%, 90% { width: var(--w); opacity: 1; } 97% { width: var(--w); opacity: 0; } 100% { width: 0; opacity: 0; } }
 
 /* Download CSV: the file drops into the tray. */
 .k-drop { animation-name: drop; }
@@ -151,19 +201,20 @@ body {
 .k-copy { animation-name: copyA; }
 .k-copied { animation-name: copyB; }
 @keyframes copyA { 0%, 40% { opacity: 1; } 46%, 90% { opacity: 0; } 100% { opacity: 1; } }
-@keyframes copyB { 0%, 40% { opacity: 0; } 46%, 90% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes copyB { 0%, 40% { opacity: 0; transform: scale(0.96); } 46% { opacity: 1; transform: scale(1.04); } 51%, 90% { opacity: 1; transform: none; } 100% { opacity: 0; transform: scale(0.96); } }
 
 /* Reason cards: a strike across the unusable option, the fee bar overtaking the saving,
    and two cases collapsing to one case plus one. */
-.k-strike { animation-name: strike; transform-origin: left; }
-@keyframes strike { 0%, 25% { transform: scaleX(0); } 45%, 90% { transform: scaleX(1); } 100% { transform: scaleX(0); } }
-.k-grow { animation-name: grow; transform-origin: left; }
-@keyframes grow { 0%, 15% { transform: scaleX(0); } 55%, 90% { transform: scaleX(1); } 100% { transform: scaleX(0); } }
+.k-strike, .k-grow { transform-box: fill-box; transform-origin: left; }
+.k-strike { animation-name: strike; }
+@keyframes strike { 0%, 25% { opacity: 1; transform: scaleX(0); } 45%, 88% { opacity: 1; transform: scaleX(1); } 96%, 100% { opacity: 0; transform: scaleX(1); } }
+.k-grow { animation-name: grow; }
+@keyframes grow { 0%, 15% { opacity: 1; transform: scaleX(0); } 55%, 88% { opacity: 1; transform: scaleX(1); } 96%, 100% { opacity: 0; transform: scaleX(1); } }
 .k-fade-out { animation-name: fadeout; }
 @keyframes fadeout { 0%, 35% { opacity: 1; } 50%, 90% { opacity: 0.12; } 100% { opacity: 1; } }
 
 @media (prefers-reduced-motion: reduce) {
   .loop, .k-route, .shimmer { animation: none !important; }
-  .k-fee, .k-copied, .k-count0, .k-count1, .k-count2, .k-count3 { opacity: 0; }
+  .k-fee, .k-copied, .k-count0, .k-count1, .k-count2, .k-count3, .k-dc0, .k-dc1, .k-dc2 { opacity: 0; }
   .reveal { opacity: 1; transform: none; transition: none; }
 }
