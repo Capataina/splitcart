@@ -156,7 +156,11 @@ function solve(highs: Highs, suppliers: Supplier[], products: Product[], options
 }
 
 /** Cheapest supplier split for the current order. `today` is an ISO date (promo validity). */
-export async function optimise(ws: { suppliers: Supplier[]; products: Product[]; offers: Offer[] }, today: string): Promise<OptimisationResult> {
+export async function optimise(
+  ws: { suppliers: Supplier[]; products: Product[]; offers: Offer[] },
+  today: string,
+  outside?: { suppliers: Supplier[]; offers: Offer[] }, // the shared price book's suppliers, if any
+): Promise<OptimisationResult> {
   const solvedAt = new Date().toISOString();
   const wanted = ws.products.filter((p) => p.neededQty > 0);
   const options = purchaseOptions(ws.offers, ws.products, ws.suppliers, today);
@@ -207,11 +211,29 @@ export async function optimise(ws: { suppliers: Supplier[]; products: Product[];
     baseline: baseline?.plan.total ?? null,
     ms: Date.now() - Date.parse(solvedAt),
   });
+  // Same model, more suppliers: the exact saving from also buying via the price book,
+  // with the outside suppliers' minimums and fees priced in rather than per-item gaps.
+  let network: OptimisationResult["network"] = null;
+  if (outside && outside.offers.length) {
+    const all = [...ws.suppliers, ...outside.suppliers];
+    const wider = solve(highs, all, orderable, purchaseOptions([...ws.offers, ...outside.offers], ws.products, all, today));
+    const outsideIds = new Set(outside.suppliers.map((s) => s.id));
+    if (wider && wider.total < plan.total - 0.005) {
+      network = {
+        total: wider.total,
+        extraSaving: round2(plan.total - wider.total),
+        newSuppliers: wider.orders.filter((o) => outsideIds.has(o.supplierId)).map((o) => o.supplierName),
+        plan: wider,
+      };
+    }
+  }
+
   return {
     status: "optimal",
     plan,
     baseline,
     savings: baseline ? round2(baseline.plan.total - plan.total) : null,
+    network,
     unavailable,
     notes,
     solvedAt,

@@ -97,6 +97,8 @@ export interface OptimisationResult {
   // Best plan using a single supplier for everything, the way most owners order today.
   baseline: { supplierName: string; plan: Plan } | null;
   savings: number | null; // baseline.total - plan.total
+  // The same order re-solved with suppliers from the shared price book added, when that is cheaper.
+  network?: { total: number; extraSaving: number; newSuppliers: string[]; plan: Plan } | null;
   unavailable: string[]; // products with demand that no supplier offers
   notes: string[]; // human-readable explanations (why infeasible, which rules bit)
   solvedAt: string;

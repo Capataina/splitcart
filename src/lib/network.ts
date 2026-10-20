@@ -1,4 +1,5 @@
 import { sql } from "./db";
+import type { Offer, Supplier } from "./types";
 
 /*
  * The shared price book: list prices other Splitcart businesses have entered for
@@ -20,6 +21,41 @@ export interface CheaperElsewhere {
 }
 
 type Row = Record<string, unknown>;
+
+/**
+ * Every outside offer for this business's products, re-pointed at its own product
+ * ids, with each outside supplier's real rules, so the optimiser can re-solve the
+ * order as if the business also bought from them.
+ */
+export async function outsideOptions(companyId: string): Promise<{ suppliers: Supplier[]; offers: Offer[] }> {
+  const rows = (await sql()`
+    select p.id as product_id, s.id as supplier_id, s.name as supplier_name, s.min_order, s.delivery_fee,
+      s.free_delivery_over, o.id as offer_id, o.label, o.case_size, o.case_price
+    from products p
+    join products op on lower(trim(op.name)) = lower(trim(p.name)) and lower(trim(op.unit)) = lower(trim(p.unit))
+      and op.company_id <> ${companyId}
+    join offers o on o.product_id = op.id
+    join suppliers s on s.id = o.supplier_id
+    where p.company_id = ${companyId}
+      and lower(trim(s.name)) not in (select lower(trim(name)) from suppliers where company_id = ${companyId})`) as Row[];
+  const suppliers = new Map<string, Supplier>();
+  const offers: Offer[] = rows.map((r) => {
+    suppliers.set(r.supplier_id as string, {
+      id: r.supplier_id as string,
+      name: r.supplier_name as string,
+      minOrder: Number(r.min_order),
+      deliveryFee: Number(r.delivery_fee),
+      freeDeliveryOver: num(r.free_delivery_over),
+    });
+    // Promos and per-order caps belong to the other business's account, so only list prices travel.
+    return {
+      id: r.offer_id as string, supplierId: r.supplier_id as string, productId: r.product_id as string,
+      label: r.label as string, caseSize: Number(r.case_size), casePrice: Number(r.case_price),
+      promoPrice: null, promoUntil: null, maxBuys: null,
+    };
+  });
+  return { suppliers: [...suppliers.values()], offers };
+}
 const num = (v: unknown) => (v === null || v === undefined ? null : Number(v));
 
 /** Best outside offer per product that beats (or fills a gap in) your own suppliers. */

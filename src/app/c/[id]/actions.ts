@@ -17,6 +17,7 @@ import {
   updateProduct,
   updateSupplier,
 } from "@/lib/repo";
+import { outsideOptions } from "@/lib/network";
 import { optimise, todayInLondon } from "@/lib/optimise";
 import type { Offer, Product, Supplier } from "@/lib/types";
 import type { FormState } from "@/components/ActionForm";
@@ -219,7 +220,7 @@ export async function runOptimiser(companyId: string): Promise<OptimiseState> {
     if (ws.company.plan === "free" && ws.runCount >= 1) return { upgrade: true };
     if (ws.products.length === 0) return { error: "Add at least one product before optimising." };
     if (ws.suppliers.length === 0) return { error: "Add at least one supplier before optimising." };
-    const result = await optimise(ws, todayInLondon());
+    const result = await optimise(ws, todayInLondon(), await outsideOptions(companyId));
     runId = await saveRun(companyId, result);
   } catch (e) {
     if (e instanceof Locked) return { error: "This business is locked on this device. Reload and enter the code." };
