@@ -26,8 +26,9 @@ type Row = Record<string, unknown>;
 // pg_trgm similarity on lower-cased names, with units canonicalised by the canon_unit()
 // SQL function (litre = l, kilo = kg, pcs = each). Measured: "whole milk 2l" vs
 // "whole milk" 0.79 (match), "oat milk" 0.33 and "semi-skimmed milk" 0.22 vs
-// "whole milk" (no match), word order swapped 1.0.
-const MATCH = 0.55;
+// "whole milk" (no match), word order swapped 1.0. 0.55 was too loose: "milk" vs
+// "oat milk" scores 0.555 and put a plain-milk supplier into an oat-milk plan.
+const MATCH = 0.6;
 
 /**
  * Every outside offer for this business's products, re-pointed at its own product

@@ -1,7 +1,7 @@
 import { findCheaperElsewhere, type CheaperElsewhere } from "@/lib/network";
 import { todayInLondon } from "@/lib/optimise";
 import { getWorkspace } from "@/lib/repo";
-import { money } from "@/app/format";
+import { money, perUnit } from "@/app/format";
 import type { FormState } from "@/components/ActionForm";
 import {
   adoptOutsideSupplier,
@@ -83,11 +83,11 @@ function CheaperElsewhereCard({ rows, adopt }: { rows: CheaperElsewhere[]; adopt
                   {items.map((r) => (
                     <li key={`${r.productName}-${r.offerLabel}`} className="flex items-start justify-between gap-4 py-2 text-sm">
                       <p className="tabular-nums">
-                        {t.supplierName} sells {r.productName} at {money(r.theirUnitPrice)}/{r.unit} ({r.offerLabel}).{" "}
+                        {t.supplierName} sells {r.productName} at {perUnit(r.theirUnitPrice, 1, r.unit)} ({r.offerLabel}).{" "}
                         {r.yourUnitPrice === null ? (
                           <span className="text-muted">None of your suppliers stock it.</span>
                         ) : (
-                          <>You pay {money(r.yourUnitPrice)}/{r.unit}.</>
+                          <>You pay {perUnit(r.yourUnitPrice, 1, r.unit)}.</>
                         )}
                       </p>
                       {r.yourUnitPrice !== null && r.yourUnitPrice > 0 ? (

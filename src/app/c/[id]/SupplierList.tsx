@@ -3,7 +3,7 @@
 import { startTransition, useActionState, useEffect, useState } from "react";
 import { ActionForm, SubmitButton, type FormState } from "@/components/ActionForm";
 import { INPUT } from "@/components/fieldStyles";
-import { money, qty, shortDate } from "@/app/format";
+import { money, perUnit, qty, shortDate } from "@/app/format";
 import type { Offer, Product, Supplier } from "@/lib/types";
 
 type Action = (prev: FormState, data: FormData) => Promise<FormState>;
@@ -65,16 +65,6 @@ function rulesLine(s: Supplier): string {
   if (s.deliveryFee <= 0) return `${min} · free delivery`;
   const over = s.freeDeliveryOver !== null ? ` · free delivery over ${money(s.freeDeliveryOver)}` : "";
   return `${min} · ${money(s.deliveryFee)} delivery${over}`;
-}
-
-const UNIT_WORDS: Record<string, string> = { each: "each", l: "per litre", kg: "per kg", g: "per g", ml: "per ml" };
-
-/** Per-unit price in the unit people compare on: pence under £1 ("3.8p each"), pounds above. */
-export function perUnit(price: number, caseSize: number, unit: string): string {
-  const each = price / caseSize;
-  const word = UNIT_WORDS[unit] ?? `per ${unit}`;
-  if (each < 1) return `${qty(Number((each * 100).toFixed(1)))}p ${word}`;
-  return `${money(each)} ${word}`;
 }
 
 /** The label, plus the total in brackets unless the label already states it: "Case 6 × 2 l (12 l)". */

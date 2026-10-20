@@ -14,6 +14,16 @@ export function qty(n: number): string {
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 /** "2026-10-31" -> "31 Oct". Read from the string so no timezone can shift the day. */
+const UNIT_WORDS: Record<string, string> = { each: "each", l: "per litre", kg: "per kg", g: "per g", ml: "per ml" };
+
+/** Per-unit price in the unit people compare on: pence under £1 ("3.8p each"), pounds above. */
+export function perUnit(price: number, caseSize: number, unit: string): string {
+  const each = price / caseSize;
+  const word = UNIT_WORDS[unit] ?? `per ${unit}`;
+  if (each < 1) return `${qty(Number((each * 100).toFixed(1)))}p ${word}`;
+  return `${money(each)} ${word}`;
+}
+
 export function shortDate(iso: string): string {
   const [, m, d] = iso.slice(0, 10).split("-").map(Number);
   if (!m || !d) return iso;
