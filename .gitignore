@@ -43,3 +43,9 @@ next-env.d.ts
 *.pdf
 .vercel
 .env*.local
+.agents/
+.claude/
+skills-lock.json
+
+# dev telemetry (src/lib/telemetry.ts)
+.telemetry/

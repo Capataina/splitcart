@@ -6,7 +6,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "telemetry": "node scripts/telemetry.mjs",
+    "test": "node --test tests/*.test.ts",
+    "db:migrate": "node --env-file=.env.local scripts/migrate.mjs"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.2.0",
@@ -24,5 +27,6 @@
     "eslint-config-next": "16.4.2",
     "tailwindcss": "^4",
     "typescript": "^5"
-  }
+  },
+  "type": "module"
 }
