@@ -29,17 +29,21 @@ create table if not exists products (
   created_at timestamptz not null default now()
 );
 
--- What one supplier charges for one product: sold in whole cases only.
+-- One way to buy a product from a supplier: `case_size` units for `case_price`,
+-- bought in whole multiples. A supplier selling singles and cases of the same item
+-- has two offers, and the solver picks the mix (UK wholesalers list both).
 create table if not exists offers (
   id uuid primary key default gen_random_uuid(),
   supplier_id uuid not null references suppliers(id) on delete cascade,
   product_id uuid not null references products(id) on delete cascade,
+  label text not null default '',                      -- e.g. "Single 1 kg", "Case 6 x 1 kg"
   case_size numeric(10,2) not null check (case_size > 0),
   case_price numeric(10,2) not null check (case_price >= 0),
   promo_price numeric(10,2) check (promo_price >= 0),  -- replaces case_price while promo_until >= today
   promo_until date,
-  unique (supplier_id, product_id)
+  max_buys int check (max_buys > 0)                    -- per-order cap: promo limits, stock
 );
+create index if not exists offers_supplier on offers(supplier_id);
 
 -- Every optimisation is kept so the owner can see what was recommended and when.
 create table if not exists runs (

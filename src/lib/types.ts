@@ -26,14 +26,20 @@ export interface Product {
   neededQty: number;
 }
 
+/**
+ * One way to buy a product from a supplier: `caseSize` units for `casePrice`, in
+ * whole multiples ("buys"). Singles and cases of the same item are two offers.
+ */
 export interface Offer {
   id: string;
   supplierId: string;
   productId: string;
-  caseSize: number;
-  casePrice: number;
-  promoPrice: number | null;
+  label: string; // e.g. "Single 1 kg", "Case 6 x 1 kg"
+  caseSize: number; // units of the product's unit per buy
+  casePrice: number; // £ per buy
+  promoPrice: number | null; // replaces casePrice while promoUntil >= today
   promoUntil: string | null; // ISO date, inclusive
+  maxBuys: number | null; // per-order cap (promo limit, stock)
 }
 
 export interface Workspace {
@@ -47,6 +53,7 @@ export interface Workspace {
 export interface OrderLine {
   productId: string;
   productName: string;
+  offerLabel: string;
   unit: string;
   cases: number;
   caseSize: number;

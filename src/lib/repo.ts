@@ -33,6 +33,8 @@ const toOffer = (r: Row): Offer => ({
   id: r.id as string,
   supplierId: r.supplier_id as string,
   productId: r.product_id as string,
+  label: r.label as string,
+  maxBuys: num(r.max_buys),
   caseSize: Number(r.case_size),
   casePrice: Number(r.case_price),
   promoPrice: num(r.promo_price),
@@ -98,14 +100,18 @@ export async function deleteProduct(companyId: string, productId: string) {
   await sql()`delete from products where id = ${productId} and company_id = ${companyId}`;
 }
 
-/** Insert or replace the offer a supplier makes for a product (one per pair). */
-export async function upsertOffer(companyId: string, o: Omit<Offer, "id">) {
-  await sql()`insert into offers (supplier_id, product_id, case_size, case_price, promo_price, promo_until)
-    select ${o.supplierId}, ${o.productId}, ${o.caseSize}, ${o.casePrice}, ${o.promoPrice}, ${o.promoUntil}
+/** Add a way to buy a product from a supplier; both must belong to the company. */
+export async function addOffer(companyId: string, o: Omit<Offer, "id">) {
+  await sql()`insert into offers (supplier_id, product_id, label, case_size, case_price, promo_price, promo_until, max_buys)
+    select ${o.supplierId}, ${o.productId}, ${o.label}, ${o.caseSize}, ${o.casePrice}, ${o.promoPrice}, ${o.promoUntil}, ${o.maxBuys}
     where exists (select 1 from suppliers where id = ${o.supplierId} and company_id = ${companyId})
-      and exists (select 1 from products where id = ${o.productId} and company_id = ${companyId})
-    on conflict (supplier_id, product_id) do update set case_size = excluded.case_size,
-      case_price = excluded.case_price, promo_price = excluded.promo_price, promo_until = excluded.promo_until`;
+      and exists (select 1 from products where id = ${o.productId} and company_id = ${companyId})`;
+}
+
+export async function updateOffer(companyId: string, o: Offer) {
+  await sql()`update offers o set label = ${o.label}, case_size = ${o.caseSize}, case_price = ${o.casePrice},
+    promo_price = ${o.promoPrice}, promo_until = ${o.promoUntil}, max_buys = ${o.maxBuys}
+    from suppliers s where o.id = ${o.id} and s.id = o.supplier_id and s.company_id = ${companyId}`;
 }
 
 export async function deleteOffer(companyId: string, offerId: string) {
