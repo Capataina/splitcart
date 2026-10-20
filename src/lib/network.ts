@@ -4,8 +4,8 @@ import type { Offer, Supplier } from "./types";
 /*
  * The shared price book: list prices other Splitcart businesses have entered for
  * suppliers this business doesn't use yet. Only supplier names and their list prices
- * cross businesses; quantities, runs and business names never do. Products match on
- * lower-cased name and unit, which is crude but honest for a first version.
+ * cross businesses; quantities, runs and business names never do. Products match by
+ * fuzzy name and canonical unit (see MATCH).
  */
 
 export interface CheaperElsewhere {
@@ -23,6 +23,12 @@ export interface CheaperElsewhere {
 
 type Row = Record<string, unknown>;
 
+// pg_trgm similarity on lower-cased names, with units canonicalised by the canon_unit()
+// SQL function (litre = l, kilo = kg, pcs = each). Measured: "whole milk 2l" vs
+// "whole milk" 0.79 (match), "oat milk" 0.33 and "semi-skimmed milk" 0.22 vs
+// "whole milk" (no match), word order swapped 1.0.
+const MATCH = 0.55;
+
 /**
  * Every outside offer for this business's products, re-pointed at its own product
  * ids, with each outside supplier's real rules, so the optimiser can re-solve the
@@ -33,7 +39,7 @@ export async function outsideOptions(companyId: string): Promise<{ suppliers: Su
     select p.id as product_id, s.id as supplier_id, s.name as supplier_name, s.min_order, s.delivery_fee,
       s.free_delivery_over, o.id as offer_id, o.label, o.case_size, o.case_price
     from products p
-    join products op on lower(trim(op.name)) = lower(trim(p.name)) and lower(trim(op.unit)) = lower(trim(p.unit))
+    join products op on similarity(lower(op.name), lower(p.name)) >= ${MATCH} and canon_unit(op.unit) = canon_unit(p.unit)
       and op.company_id <> ${companyId}
     join offers o on o.product_id = op.id
     join suppliers s on s.id = o.supplier_id
@@ -84,7 +90,7 @@ export async function adoptSupplier(companyId: string, outsideSupplierId: string
 export async function findCheaperElsewhere(companyId: string): Promise<CheaperElsewhere[]> {
   const rows = (await sql()`
     with mine as (
-      select p.id, p.name, p.unit, lower(trim(p.name)) as key, lower(trim(p.unit)) as ukey,
+      select p.id, p.name, p.unit, lower(trim(p.name)) as key, canon_unit(p.unit) as ukey,
         (select min(o.case_price / o.case_size) from offers o where o.product_id = p.id) as my_unit
       from products p where p.company_id = ${companyId}
     ),
@@ -94,7 +100,7 @@ export async function findCheaperElsewhere(companyId: string): Promise<CheaperEl
         o.case_price / o.case_size as unit_price, s.min_order, s.delivery_fee, s.free_delivery_over,
         row_number() over (partition by m.id order by o.case_price / o.case_size) as rank
       from mine m
-      join products op on lower(trim(op.name)) = m.key and lower(trim(op.unit)) = m.ukey and op.company_id <> ${companyId}
+      join products op on similarity(lower(op.name), m.key) >= ${MATCH} and canon_unit(op.unit) = m.ukey and op.company_id <> ${companyId}
       join offers o on o.product_id = op.id
       join suppliers s on s.id = o.supplier_id
       where lower(trim(s.name)) not in (select key from my_suppliers)

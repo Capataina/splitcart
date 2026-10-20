@@ -58,6 +58,27 @@ create table if not exists runs (
   result jsonb not null
 );
 
+-- Wrong access-code attempts, for throttling (5 per business per 15 minutes).
+create table if not exists auth_failures (
+  key text not null,                       -- company id
+  at timestamptz not null default now()
+);
+create index if not exists auth_failures_key on auth_failures(key, at);
+
+alter table companies add column if not exists is_demo boolean not null default false;
+alter table runs add column if not exists ip_hash text; -- salted; one free run per network per 30 days
+create index if not exists runs_ip on runs(ip_hash, created_at);
+
+-- Shared price book matching: fuzzy names (pg_trgm) and canonical units.
+create extension if not exists pg_trgm;
+create or replace function canon_unit(u text) returns text language sql immutable as $f$
+  select case lower(trim(u))
+    when 'litre' then 'l' when 'litres' then 'l' when 'liter' then 'l' when 'ltr' then 'l'
+    when 'kilo' then 'kg' when 'kilos' then 'kg' when 'kgs' then 'kg'
+    when 'ea' then 'each' when 'pcs' then 'each' when 'piece' then 'each' when 'unit' then 'each'
+    else lower(trim(u)) end
+$f$;
+
 create index if not exists suppliers_company on suppliers(company_id);
 create index if not exists products_company on products(company_id);
 create index if not exists runs_company on runs(company_id, created_at desc);

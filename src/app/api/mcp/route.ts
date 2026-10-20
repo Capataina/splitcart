@@ -1,4 +1,5 @@
 import { verifyCode } from "@/lib/access";
+import { freeRunUsed, ipHash, lockoutMinutes, recordFailure, saveRunIfAllowed } from "@/lib/guard";
 import { optimise, todayInLondon } from "@/lib/optimise";
 import { findCheaperElsewhere, outsideOptions } from "@/lib/network";
 import { adviseSellPrice, unitCost } from "@/lib/pricing";
@@ -85,7 +86,7 @@ const find = <T extends { id: string; name: string }>(items: T[], ref: string | 
   return hit;
 };
 
-async function callTool(companyId: string, name: string, a: Args): Promise<unknown> {
+async function callTool(companyId: string, ip: string, name: string, a: Args): Promise<unknown> {
   const ws = (await getWorkspace(companyId)) as Workspace;
   switch (name) {
     case "get_workspace":
@@ -141,9 +142,11 @@ async function callTool(companyId: string, name: string, a: Args): Promise<unkno
       return ws.products.map((p) => ({ product: p.name, advice: adviseSellPrice(p, unitCost(p, ws.offers, today)) }));
     }
     case "optimise": {
-      if (ws.company.plan === "free" && ws.runCount >= 1) throw new Error("The free optimisation has been used. Upgrade to Pro (£29/month) for unlimited runs.");
+      const upgrade = "The free optimisation has been used. Upgrade to Pro (£29/month) for unlimited runs.";
+      if (await freeRunUsed(companyId, ip)) throw new Error(upgrade);
       const result = await optimise(ws, todayInLondon(), await outsideOptions(companyId));
-      const runId = await saveRun(companyId, result);
+      const runId = await saveRunIfAllowed(companyId, ip, result);
+      if (!runId) throw new Error(upgrade);
       return { runId, ...result };
     }
     default:
@@ -156,9 +159,15 @@ const rpc = (id: unknown, body: object) => Response.json({ jsonrpc: "2.0", id, .
 export async function POST(req: Request) {
   const [companyId, ...rest] = (req.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "").split(":");
   const auth = companyId ? await getCompanyAuth(companyId) : null;
+  if (auth) {
+    const wait = await lockoutMinutes(companyId);
+    if (wait) return Response.json({ error: `Too many wrong codes. Try again in ${wait} minutes.` }, { status: 429 });
+  }
   if (!auth || !verifyCode(rest.join(":"), auth.accessHash)) {
+    if (auth) await recordFailure(companyId);
     return Response.json({ error: "Send Authorization: Bearer <companyId>:<accessCode>" }, { status: 401 });
   }
+  const ip = ipHash(req.headers);
 
   let msg: { id?: unknown; method?: string; params?: { name?: string; arguments?: Args } };
   try {
@@ -178,7 +187,7 @@ export async function POST(req: Request) {
     case "tools/call": {
       const name = msg.params?.name ?? "";
       try {
-        const out = await callTool(companyId, name, msg.params?.arguments ?? {});
+        const out = await callTool(companyId, ip, name, msg.params?.arguments ?? {});
         track("mcp_tool", { tool: name, ok: true });
         return rpc(msg.id, { result: { content: [{ type: "text", text: typeof out === "string" ? out : JSON.stringify(out, null, 2) }] } });
       } catch (err) {

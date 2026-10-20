@@ -89,7 +89,7 @@ const PEER_OFFERS: [string, string, string, number, number][] = [
 async function ensureNetworkPeer(q: ReturnType<typeof sql>) {
   const existing = (await q`select id from companies where name = ${PEER} limit 1`) as { id: string }[];
   if (existing.length) return;
-  const [{ id }] = (await q`insert into companies (name, kind, access_hash) values (${PEER}, 'shop', ${hashCode(randomUUID())}) returning id`) as { id: string }[];
+  const [{ id }] = (await q`insert into companies (name, kind, access_hash, is_demo) values (${PEER}, 'shop', ${hashCode(randomUUID())}, true) returning id`) as { id: string }[];
   const sup = new Map<string, string>();
   for (const s of PEER_SUPPLIERS) {
     const [r] = (await q`insert into suppliers (company_id, name, min_order, delivery_fee, free_delivery_over)
@@ -111,7 +111,7 @@ export async function createDemoCompany(): Promise<{ id: string; accessHash: str
   const accessHash = hashCode(DEMO_CODE);
   track("demo_created");
   await ensureNetworkPeer(q);
-  const [{ id }] = (await q`insert into companies (name, kind, access_hash) values ('Corner Cup Café (demo)', 'cafe', ${accessHash}) returning id`) as { id: string }[];
+  const [{ id }] = (await q`insert into companies (name, kind, access_hash, is_demo) values ('Corner Cup Café (demo)', 'cafe', ${accessHash}, true) returning id`) as { id: string }[];
 
   const supplierIds = new Map<string, string>();
   for (const s of SUPPLIERS) {

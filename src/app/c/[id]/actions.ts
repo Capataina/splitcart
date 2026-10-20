@@ -17,7 +17,9 @@ import {
   updateProduct,
   updateSupplier,
 } from "@/lib/repo";
-import { outsideOptions } from "@/lib/network";
+import { headers } from "next/headers";
+import { freeRunUsed, ipHash, lockoutMinutes, recordFailure, saveRunIfAllowed } from "@/lib/guard";
+import { adoptSupplier, outsideOptions } from "@/lib/network";
 import { optimise, todayInLondon } from "@/lib/optimise";
 import type { Offer, Product, Supplier } from "@/lib/types";
 import type { FormState } from "@/components/ActionForm";
@@ -58,8 +60,11 @@ async function mutate(companyId: string, data: FormData, keepValues: boolean, wo
 export async function unlock(companyId: string, _prev: FormState, data: FormData): Promise<FormState> {
   const auth = isUuid(companyId) ? await getCompanyAuth(companyId) : null;
   if (!auth) return { error: "This business no longer exists." };
+  const wait = await lockoutMinutes(companyId);
+  if (wait) return { error: `Too many wrong codes. Try again in ${wait} minute${wait === 1 ? "" : "s"}.` };
   const code = data.get("code");
   if (typeof code !== "string" || !code || code.length > 200 || !verifyCode(code, auth.accessHash)) {
+    await recordFailure(companyId);
     return { error: "Wrong code" };
   }
   await grantAccess(companyId, auth.accessHash, data.get("remember") === "on");
@@ -86,12 +91,16 @@ export async function createSupplier(companyId: string, _prev: FormState, data: 
   return mutate(companyId, data, true, () => addSupplier(companyId, readSupplier(data)));
 }
 
-export async function saveSupplier(companyId: string, _prev: FormState, data: FormData) {
-  return mutate(companyId, data, true, () => updateSupplier(companyId, { id: id(data, "id"), ...readSupplier(data) }));
-}
-
 export async function removeSupplier(companyId: string, _prev: FormState, data: FormData) {
   return mutate(companyId, data, false, () => deleteSupplier(companyId, id(data, "id")));
+}
+
+/** Copies a shared-price-book supplier and its list prices into this business's own suppliers. */
+export async function adoptOutsideSupplier(companyId: string, _prev: FormState, data: FormData) {
+  return mutate(companyId, data, false, async () => {
+    const name = await adoptSupplier(companyId, id(data, "supplierId"));
+    if (name === null) throw new FieldError("That supplier is no longer in the price book.");
+  });
 }
 
 // ---- Products ---------------------------------------------------------------
@@ -144,11 +153,30 @@ export async function createProduct(companyId: string, _prev: FormState, data: F
   return mutate(companyId, data, true, () => addProduct(companyId, readProduct(data)));
 }
 
-export async function saveProduct(companyId: string, _prev: FormState, data: FormData) {
-  return mutate(companyId, data, true, async () => {
-    const fields = readProduct(data);
-    const current = await storedProduct(companyId, id(data, "id"));
-    await updateProduct(companyId, { ...current, ...fields });
+/**
+ * Saves the What-you-need table from its edit mode in one submit: each row arrives as
+ * "p.<productId>.<field>", with "p.<productId>.remove" = 1 for rows marked for deletion.
+ * Every row is validated before the first write, so a bad row saves nothing.
+ */
+export async function saveProducts(companyId: string, _prev: FormState, data: FormData) {
+  return mutate(companyId, data, false, async () => {
+    const ids = new Set<string>();
+    for (const k of data.keys()) {
+      const m = /^p\.([^.]+)\./.exec(k);
+      if (m) ids.add(m[1]);
+    }
+    const stored = (await getWorkspace(companyId))?.products ?? [];
+    const updates: Product[] = [];
+    const removals: string[] = [];
+    for (const productId of ids) {
+      const current = stored.find((p) => p.id === productId);
+      if (!isUuid(productId) || !current) throw new FieldError("A product in the table no longer exists. Reload the page.");
+      const row = rowData(data, `p.${productId}.`);
+      if (row.get("remove") === "1") removals.push(productId);
+      else updates.push({ ...current, ...readProduct(row) });
+    }
+    for (const p of updates) await updateProduct(companyId, p);
+    for (const productId of removals) await deleteProduct(companyId, productId);
   });
 }
 
@@ -160,9 +188,6 @@ export async function saveProductPricing(companyId: string, _prev: FormState, da
   });
 }
 
-export async function removeProduct(companyId: string, _prev: FormState, data: FormData) {
-  return mutate(companyId, data, false, () => deleteProduct(companyId, id(data, "id")));
-}
 
 // ---- Offers (ways to buy) -----------------------------------------------------
 
@@ -185,26 +210,48 @@ function readOfferTerms(data: FormData): Pick<Offer, "label" | "caseSize" | "cas
   };
 }
 
-export async function createOffer(companyId: string, _prev: FormState, data: FormData) {
-  return mutate(companyId, data, true, () =>
-    addOffer(companyId, { supplierId: id(data, "supplierId"), productId: id(data, "productId"), ...readOfferTerms(data) }),
-  );
+/** The fields under one row prefix ("o.<offerId>." or "n.<key>."), as their own FormData for readOfferTerms. */
+function rowData(data: FormData, prefix: string): FormData {
+  const out = new FormData();
+  for (const [k, v] of data.entries()) if (k.startsWith(prefix)) out.set(k.slice(prefix.length), v);
+  return out;
 }
 
-export async function saveOffer(companyId: string, _prev: FormState, data: FormData) {
-  return mutate(companyId, data, true, () =>
-    updateOffer(companyId, {
-      id: id(data, "id"),
-      supplierId: id(data, "supplierId"),
-      productId: id(data, "productId"),
-      ...readOfferTerms(data),
-    }),
-  );
+/**
+ * Saves a whole supplier card from its edit mode in one submit: the supplier's rules,
+ * every existing offer (updated, or deleted when marked), and any new ways to buy.
+ * Everything is validated before the first write, so a bad row saves nothing.
+ */
+export async function saveSupplierCard(companyId: string, _prev: FormState, data: FormData) {
+  return mutate(companyId, data, false, async () => {
+    const supplierId = id(data, "id");
+    const supplier = { id: supplierId, ...readSupplier(data) };
+    const prefixes = new Set<string>();
+    for (const k of data.keys()) {
+      const m = /^([on])\.([^.]+)\./.exec(k);
+      if (m) prefixes.add(`${m[1]}.${m[2]}.`);
+    }
+    const updates: Parameters<typeof updateOffer>[1][] = [];
+    const removals: string[] = [];
+    const additions: Parameters<typeof addOffer>[1][] = [];
+    for (const p of prefixes) {
+      const row = rowData(data, p);
+      if (p.startsWith("o.")) {
+        const offerId = p.slice(2, -1);
+        if (!isUuid(offerId)) throw new FieldError("That price row is not recognised. Reload and try again.");
+        if (row.get("remove") === "1") removals.push(offerId);
+        else updates.push({ id: offerId, supplierId, productId: id(row, "productId"), ...readOfferTerms(row) });
+      } else {
+        additions.push({ supplierId, productId: id(row, "productId"), ...readOfferTerms(row) });
+      }
+    }
+    await updateSupplier(companyId, supplier);
+    for (const o of updates) await updateOffer(companyId, o);
+    for (const o of additions) await addOffer(companyId, o);
+    for (const offerId of removals) await deleteOffer(companyId, offerId);
+  });
 }
 
-export async function removeOffer(companyId: string, _prev: FormState, data: FormData) {
-  return mutate(companyId, data, false, () => deleteOffer(companyId, id(data, "id")));
-}
 
 // ---- Optimise -----------------------------------------------------------------
 
@@ -217,11 +264,14 @@ export async function runOptimiser(companyId: string): Promise<OptimiseState> {
     await requireAccess(companyId);
     const ws = await getWorkspace(companyId);
     if (!ws) return { error: "This business no longer exists." };
-    if (ws.company.plan === "free" && ws.runCount >= 1) return { upgrade: true };
+    const ip = ipHash(await headers());
+    if (await freeRunUsed(companyId, ip)) return { upgrade: true };
     if (ws.products.length === 0) return { error: "Add at least one product before optimising." };
     if (ws.suppliers.length === 0) return { error: "Add at least one supplier before optimising." };
     const result = await optimise(ws, todayInLondon(), await outsideOptions(companyId));
-    runId = await saveRun(companyId, result);
+    const saved = await saveRunIfAllowed(companyId, ip, result);
+    if (!saved) return { upgrade: true };
+    runId = saved;
   } catch (e) {
     if (e instanceof Locked) return { error: "This business is locked on this device. Reload and enter the code." };
     console.error("optimise failed", { companyId, error: e });
