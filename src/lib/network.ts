@@ -93,8 +93,17 @@ export async function adoptSupplier(companyId: string, outsideSupplierId: string
 export async function findCheaperElsewhere(companyId: string): Promise<CheaperElsewhere[]> {
   const rows = (await sql()`
     with mine as (
+      -- "What you pay" is what the latest optimised plan actually paid per unit, falling
+      -- back to the cheapest list price. Comparing against list prices disagreed with the
+      -- results page: an adopted supplier the solver rejects (its minimum or fee makes it
+      -- a loss) hid cheaper outside suppliers the exact re-solve would still use.
       select p.id, p.name, p.unit, lower(trim(p.name)) as key, canon_unit(p.unit) as ukey,
-        (select min(o.case_price / o.case_size) from offers o where o.product_id = p.id) as my_unit
+        coalesce(
+          (select sum((l->>'lineTotal')::numeric) / nullif(sum((l->>'unitsBought')::numeric), 0)
+             from (select result from runs where company_id = ${companyId} order by created_at desc limit 1) r,
+                  jsonb_array_elements(r.result->'plan'->'orders') ord, jsonb_array_elements(ord->'lines') l
+             where l->>'productId' = p.id::text),
+          (select min(o.case_price / o.case_size) from offers o where o.product_id = p.id)) as my_unit
       from products p where p.company_id = ${companyId}
     ),
     my_suppliers as (select lower(trim(name)) as key from suppliers where company_id = ${companyId}),

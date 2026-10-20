@@ -123,11 +123,17 @@ function NetworkSaving({ result }: { result: OptimisationResult }) {
   const fresh = new Set(net.newSuppliers);
   const lines = net.plan.orders.filter((o) => fresh.has(o.supplierName));
   return (
-    <div className="mt-6 rounded-xl border-2 border-accent/40 bg-accent-soft p-5">
-      <p className="text-lg font-semibold tabular-nums text-accent">
-        Add {joinNames(net.newSuppliers)} and this order drops to {money(net.total)} (another {money(net.extraSaving)})
+    // An alternative branch, not a correction: the plan above is the cheapest with the
+    // suppliers you chose; this one also uses suppliers you don't work with yet.
+    <div className="mt-6 rounded-xl border border-dashed border-accent/50 bg-accent-soft/60 p-5">
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted">Option B · with new suppliers</p>
+      <p className="mt-1 text-lg font-semibold tabular-nums text-accent">
+        With {joinNames(net.newSuppliers)}: {money(net.total)}, {money(net.extraSaving)} less
       </p>
-      <p className="mt-1 text-sm text-muted">From the shared price book: list prices other Splitcart businesses have entered.</p>
+      <p className="mt-1 text-sm text-muted">
+        Your plan below is the cheapest with your own suppliers. This option also buys from {joinNames(net.newSuppliers)}, found in the shared price book.
+        To use it, add them on the Suppliers page and optimise again.
+      </p>
       {lines.length > 0 ? (
         <details className="mt-3 text-sm">
           <summary className="cursor-pointer font-medium text-accent">What you&apos;d buy from them</summary>
