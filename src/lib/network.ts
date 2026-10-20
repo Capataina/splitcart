@@ -9,6 +9,7 @@ import type { Offer, Supplier } from "./types";
  */
 
 export interface CheaperElsewhere {
+  supplierId: string; // pass to adoptSupplier
   productName: string;
   unit: string;
   supplierName: string;
@@ -58,6 +59,27 @@ export async function outsideOptions(companyId: string): Promise<{ suppliers: Su
 }
 const num = (v: unknown) => (v === null || v === undefined ? null : Number(v));
 
+/**
+ * One click from "cheaper elsewhere" to "my supplier": copies an outside supplier's
+ * rules and its list prices for this business's products. Returns the new supplier's
+ * name, or null if there was nothing to copy.
+ */
+export async function adoptSupplier(companyId: string, outsideSupplierId: string): Promise<string | null> {
+  const { suppliers, offers } = await outsideOptions(companyId);
+  const s = suppliers.find((x) => x.id === outsideSupplierId);
+  if (!s) return null;
+  const q = sql();
+  const [{ id }] = (await q`insert into suppliers (company_id, name, min_order, delivery_fee, free_delivery_over)
+    values (${companyId}, ${s.name}, ${s.minOrder}, ${s.deliveryFee}, ${s.freeDeliveryOver}) returning id`) as { id: string }[];
+  await Promise.all(
+    offers
+      .filter((o) => o.supplierId === s.id)
+      .map((o) => q`insert into offers (supplier_id, product_id, label, case_size, case_price)
+        values (${id}, ${o.productId}, ${o.label}, ${o.caseSize}, ${o.casePrice})`),
+  );
+  return s.name;
+}
+
 /** Best outside offer per product that beats (or fills a gap in) your own suppliers. */
 export async function findCheaperElsewhere(companyId: string): Promise<CheaperElsewhere[]> {
   const rows = (await sql()`
@@ -68,7 +90,7 @@ export async function findCheaperElsewhere(companyId: string): Promise<CheaperEl
     ),
     my_suppliers as (select lower(trim(name)) as key from suppliers where company_id = ${companyId}),
     outside as (
-      select m.name as product_name, m.unit, m.my_unit, s.name as supplier_name, o.label,
+      select m.name as product_name, m.unit, m.my_unit, s.id as supplier_id, s.name as supplier_name, o.label,
         o.case_price / o.case_size as unit_price, s.min_order, s.delivery_fee, s.free_delivery_over,
         row_number() over (partition by m.id order by o.case_price / o.case_size) as rank
       from mine m
@@ -82,6 +104,7 @@ export async function findCheaperElsewhere(companyId: string): Promise<CheaperEl
     order by (my_unit - unit_price) / nullif(my_unit, 0) desc nulls first
     limit 10`) as Row[];
   return rows.map((r) => ({
+    supplierId: r.supplier_id as string,
     productName: r.product_name as string,
     unit: r.unit as string,
     supplierName: r.supplier_name as string,
