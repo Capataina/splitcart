@@ -9,6 +9,8 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@neondatabase/serverless": "^1.2.0",
+    "highs": "^1.15.4",
     "next": "16.4.2",
     "react": "19.3.0",
     "react-dom": "19.3.0"

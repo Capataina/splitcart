@@ -1,9 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
-  cacheComponents: true,
-  partialPrefetching: true,
+  // highs ships a .wasm beside its JS loader; bundling it breaks the relative
+  // wasm lookup, so Node must require it from node_modules at run time.
+  serverExternalPackages: ["highs"],
   turbopack: {
     rules: {
       "*.css": {
