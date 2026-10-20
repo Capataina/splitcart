@@ -15,7 +15,8 @@ Live: _see the deployment link in the repo description_ · Demo: click **Try the
 5. **Optimise.** A mixed-integer program solved by [HiGHS](https://highs.dev) returns one purchase order per supplier and what it saves against the best single-supplier order. Every run is kept.
 
 6. **Price what you sell.** Log prices you've tried and how many sold per week; Splitcart fits a demand line and recommends the profit-maximising price inside your range (not the highest one), using the unit cost from your cheapest supplier option.
-7. **Let your AI do the typing.** `/api/mcp` is an MCP server and a plain JSON API; `/llms.txt` explains it to any assistant, which can then turn supplier emails and PDFs into suppliers and prices and run the optimiser.
+7. **See who sells it cheaper.** The shared price book compares your products against list prices other Splitcart businesses have entered for suppliers you don't use ("Riverside Wholesale sells whole milk at £0.70/l; you pay £0.80"). Only supplier list prices are shared, never quantities or business names. This is the part a business's own AI can't do: it only ever sees its own suppliers.
+8. **Let your AI do the typing.** `/api/mcp` is an MCP server and a plain JSON API; `/llms.txt` explains it to any assistant, which can then turn supplier emails and PDFs into suppliers and prices and run the optimiser.
 
 Pricing: the first optimisation per business is free; after that an upgrade prompt offers Pro at £29/month (payments not wired in this proof of concept).
 
