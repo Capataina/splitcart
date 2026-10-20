@@ -42,7 +42,7 @@ export function ProductTable({
         ) : (
           <>
             <div className="flex items-center justify-between border-b border-line px-4 pb-2">
-              <span className="text-xs font-medium text-muted">Product · this order · sell at</span>
+              <span className="text-xs font-medium text-muted">{products.length} product{products.length === 1 ? "" : "s"}</span>
               {products.length > 0 ? (
                 <button
                   type="button"
@@ -208,12 +208,19 @@ function PricingEditor({ product: p, advice, save }: { product: Product; advice:
         {() => (
           <>
             <input type="hidden" name="id" value={p.id} />
+            {/* Fixed grid columns, not w-24 on INPUT: INPUT carries w-full and the two
+                width classes fought, stretching these to the full row. */}
             <fieldset className="space-y-2">
               <legend className="text-sm font-medium">Sell range £ per {p.unit} (optional)</legend>
-              <div className="flex items-center gap-2">
-                <input name="sellMin" aria-label="Lowest sell price £" inputMode="decimal" placeholder="min" defaultValue={p.sellMin ?? ""} className={`${INPUT} w-24 tabular-nums`} />
-                <span className="text-muted">to</span>
-                <input name="sellMax" aria-label="Highest sell price £" inputMode="decimal" placeholder="max" defaultValue={p.sellMax ?? ""} className={`${INPUT} w-24 tabular-nums`} />
+              <div className="grid grid-cols-[6rem_1.5rem_6rem] items-center gap-2 text-xs text-muted">
+                <span>Lowest</span>
+                <span />
+                <span>Highest</span>
+              </div>
+              <div className="grid grid-cols-[6rem_1.5rem_6rem] items-center gap-2">
+                <input name="sellMin" aria-label="Lowest sell price £" inputMode="decimal" defaultValue={p.sellMin ?? ""} className={`${INPUT} tabular-nums`} />
+                <span className="text-center text-muted">to</span>
+                <input name="sellMax" aria-label="Highest sell price £" inputMode="decimal" defaultValue={p.sellMax ?? ""} className={`${INPUT} tabular-nums`} />
               </div>
             </fieldset>
             <fieldset className="space-y-2">
@@ -237,20 +244,20 @@ function PricingEditor({ product: p, advice, save }: { product: Product; advice:
                   </button>
                 </div>
               ))}
-              <button
-                type="button"
-                onClick={() => {
-                  setRows([...rows, { key: nextKey, price: NaN, weeklySold: NaN }]);
-                  setNextKey(nextKey + 1);
-                }}
-                className="text-sm font-medium text-accent hover:underline"
-              >
-                + Add a price
-              </button>
+              <div className="flex items-center justify-between gap-6 pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRows([...rows, { key: nextKey, price: NaN, weeklySold: NaN }]);
+                    setNextKey(nextKey + 1);
+                  }}
+                  className="text-sm font-medium text-accent hover:underline"
+                >
+                  + Add a price
+                </button>
+                <SubmitButton>Save prices</SubmitButton>
+              </div>
             </fieldset>
-            <div className="self-end">
-              <SubmitButton>Save prices</SubmitButton>
-            </div>
           </>
         )}
       </ActionForm>
