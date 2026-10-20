@@ -92,3 +92,23 @@ create table if not exists offer_price_changes (
   at timestamptz not null default now()
 );
 create index if not exists offer_price_changes_offer on offer_price_changes(offer_id, at desc);
+
+-- Product name matching for the shared price book (see src/lib/network.ts).
+create or replace function canon_name(n text) returns text language sql immutable as $f$
+  select trim(regexp_replace(regexp_replace(regexp_replace(regexp_replace(regexp_replace(
+    ' ' || lower(n) || ' ',
+    '[^a-z0-9 ]', ' ', 'g'),                                                    -- punctuation
+    '\m(\d+(\.\d+)?\s*(kg|g|ml|l|litre|litres|pack|pk|x)?|case|of|pack|sleeve|bag|box|tub|raw|fresh|frozen|large|small|medium|the|and)\M', ' ', 'g'),  -- sizes, pack words
+    '\m(shrimps?|king prawns?|tiger prawns?)\M', 'prawn', 'g'),                  -- synonyms
+    '\mexpresso\M', 'espresso', 'g'),
+    '([a-z]{3,})s\M', '\1', 'g'))                                               -- plurals
+$f$;
+;
+create or replace function names_match(a text, b text) returns boolean language sql immutable as $f$
+  select not (substring(canon_name(a) from '\d+oz') is not null and substring(canon_name(b) from '\d+oz') is not null
+              and substring(canon_name(a) from '\d+oz') <> substring(canon_name(b) from '\d+oz'))
+    and (similarity(canon_name(a), canon_name(b)) >= 0.6
+      or (array_length(string_to_array(canon_name(a), ' '), 1) >= 2 and string_to_array(canon_name(a), ' ') <@ string_to_array(canon_name(b), ' '))
+      or (array_length(string_to_array(canon_name(b), ' '), 1) >= 2 and string_to_array(canon_name(b), ' ') <@ string_to_array(canon_name(a), ' ')))
+$f$
+;

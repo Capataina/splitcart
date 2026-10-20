@@ -5,7 +5,7 @@ import type { Offer, Supplier } from "./types";
  * The shared price book: list prices other Splitcart businesses have entered for
  * suppliers this business doesn't use yet. Only supplier names and their list prices
  * cross businesses; quantities, runs and business names never do. Products match by
- * fuzzy name and canonical unit (see MATCH).
+ * normalised fuzzy name and canonical unit (see the matching note below).
  */
 
 export interface CheaperElsewhere {
@@ -23,12 +23,14 @@ export interface CheaperElsewhere {
 
 type Row = Record<string, unknown>;
 
-// pg_trgm similarity on lower-cased names, with units canonicalised by the canon_unit()
-// SQL function (litre = l, kilo = kg, pcs = each). Measured: "whole milk 2l" vs
-// "whole milk" 0.79 (match), "oat milk" 0.33 and "semi-skimmed milk" 0.22 vs
-// "whole milk" (no match), word order swapped 1.0. 0.55 was too loose: "milk" vs
-// "oat milk" scores 0.555 and put a plain-milk supplier into an oat-milk plan.
-const MATCH = 0.6;
+// Products match through the names_match() SQL function (db/schema.sql): names are
+// normalised by canon_name() (pack words and weights stripped, plurals folded, a
+// synonym list: shrimp/king prawn -> prawn, expresso -> espresso), then match on
+// trigram similarity >= 0.6 or on 2+-word containment (brand prefixes), unless both
+// state different oz sizes. Units must agree via canon_unit(). Measured 11/11 on:
+// typo, brand prefix, prawn/shrimp, pack size, 12oz vs 8oz cups, milk vs oat milk.
+// Raw trigram alone failed brand prefixes (0.52) and synonyms (0.00), and at 0.55
+// matched "milk" to "oat milk" (0.555).
 
 /**
  * Every outside offer for this business's products, re-pointed at its own product
@@ -40,7 +42,7 @@ export async function outsideOptions(companyId: string): Promise<{ suppliers: Su
     select p.id as product_id, s.id as supplier_id, s.name as supplier_name, s.min_order, s.delivery_fee,
       s.free_delivery_over, o.id as offer_id, o.label, o.case_size, o.case_price
     from products p
-    join products op on similarity(lower(op.name), lower(p.name)) >= ${MATCH} and canon_unit(op.unit) = canon_unit(p.unit)
+    join products op on names_match(op.name, p.name) and canon_unit(op.unit) = canon_unit(p.unit)
       and op.company_id <> ${companyId}
     join offers o on o.product_id = op.id
     join suppliers s on s.id = o.supplier_id
@@ -101,7 +103,7 @@ export async function findCheaperElsewhere(companyId: string): Promise<CheaperEl
         o.case_price / o.case_size as unit_price, s.min_order, s.delivery_fee, s.free_delivery_over,
         row_number() over (partition by m.id order by o.case_price / o.case_size) as rank
       from mine m
-      join products op on similarity(lower(op.name), m.key) >= ${MATCH} and canon_unit(op.unit) = m.ukey and op.company_id <> ${companyId}
+      join products op on names_match(op.name, m.name) and canon_unit(op.unit) = m.ukey and op.company_id <> ${companyId}
       join offers o on o.product_id = op.id
       join suppliers s on s.id = o.supplier_id
       where lower(trim(s.name)) not in (select key from my_suppliers)
